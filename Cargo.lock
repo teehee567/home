@@ -4373,6 +4373,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "secrecy"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e891af845473308773346dc847b2c23ee78fe442e0472ac50e22a18a93d3ae5a"
+dependencies = [
+ "zeroize",
+]
+
+[[package]]
 name = "semver"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5495,10 +5504,13 @@ dependencies = [
  "blake3",
  "chacha20poly1305",
  "ed25519-dalek",
+ "hex",
  "hkdf",
  "ml-kem",
  "opaque-ke",
  "rand 0.10.0",
+ "secrecy",
+ "sha2",
  "snow",
  "thiserror 2.0.18",
  "zeroize",
