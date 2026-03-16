@@ -10,7 +10,12 @@ snow = { workspace = true }
 blake3 = { workspace = true }
 ed25519-dalek = { workspace = true }
 hkdf = { workspace = true }
+sha2 = { workspace = true }
 chacha20poly1305 = { workspace = true }
+secrecy = { workspace = true }
 zeroize = { workspace = true }
 rand = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+hex = "0.4"
