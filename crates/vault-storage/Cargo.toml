@@ -1,0 +1,13 @@
+[package]
+name = "vault-storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+vault-module = { workspace = true }
+redb = { workspace = true }
+postcard = { workspace = true }
+serde = { workspace = true }
+blake3 = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }

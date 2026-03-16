@@ -1,0 +1,12 @@
+[package]
+name = "vault-client"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+vault-core = { workspace = true }
+vault-module = { workspace = true }
+vault-transport = { workspace = true }
+tokio = { workspace = true }
+tonic = { workspace = true }
+thiserror = { workspace = true }
