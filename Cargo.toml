@@ -34,6 +34,7 @@ axum = "0.8"
 tower = "0.5"
 slint = "1"
 thiserror = "2"
+secrecy = "0.10.3"
 
 vault-core = { path = "crates/vault-core" }
 vault-module = { path = "crates/vault-module" }
