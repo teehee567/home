@@ -1,0 +1,10 @@
+[package]
+name = "desktop"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+vault-client = { workspace = true }
+vault-module = { workspace = true }
+slint = { workspace = true }
+tokio = { workspace = true }

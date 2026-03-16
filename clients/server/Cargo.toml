@@ -1,0 +1,15 @@
+[package]
+name = "server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+vault-core = { workspace = true }
+vault-module = { workspace = true }
+vault-transport = { workspace = true }
+vault-storage = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tonic = { workspace = true }
+tower = { workspace = true }
+thiserror = { workspace = true }
