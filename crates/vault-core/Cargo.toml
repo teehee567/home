@@ -16,6 +16,7 @@ secrecy = { workspace = true }
 zeroize = { workspace = true }
 rand = { workspace = true }
 thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 [dev-dependencies]
 hex = "0.4"
