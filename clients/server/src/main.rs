@@ -1,4 +1,5 @@
-#[tokio::main]
-async fn main() {
+
+
+fn main() {
     println!("home server starting");
 }

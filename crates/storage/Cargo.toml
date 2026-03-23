@@ -1,10 +1,10 @@
 [package]
-name = "vault-storage"
+name = "storage"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-vault-module = { workspace = true }
+modules = { workspace = true }
 redb = { workspace = true }
 postcard = { workspace = true }
 serde = { workspace = true }

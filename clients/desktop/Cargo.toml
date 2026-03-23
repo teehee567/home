@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-vault-client = { workspace = true }
-vault-module = { workspace = true }
+client = { workspace = true }
+modules = { workspace = true }
 slint = { workspace = true }
 tokio = { workspace = true }

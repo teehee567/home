@@ -1,5 +1,5 @@
 use hkdf::Hkdf;
-use secrecy::{ExposeSecret, SecretBox};
+use secrecy::SecretBox;
 use sha2::Sha512;
 use zeroize::Zeroize;
 

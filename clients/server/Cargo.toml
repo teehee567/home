@@ -4,10 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-vault-core = { workspace = true }
-vault-module = { workspace = true }
-vault-transport = { workspace = true }
-vault-storage = { workspace = true }
+core = { workspace = true }
+modules = { workspace = true }
+transport = { workspace = true }
+storage = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }

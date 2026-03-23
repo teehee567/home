@@ -2,7 +2,7 @@
 pub mod module_client;
 pub mod broadcast_rx;
 
-use vault_module::Module;
+use modules::Module;
 use std::marker::PhantomData;
 
 pub struct ModuleClient<M: Module> {
@@ -11,7 +11,7 @@ pub struct ModuleClient<M: Module> {
 }
 
 impl<M: Module> ModuleClient<M> {
-    pub async fn send(&self, _req: M::Request) -> Result<M::Response, vault_module::ModuleError> {
+    pub async fn send(&self, _req: M::Request) -> Result<M::Response, modules::ModuleError> {
         todo!()
     }
 }
