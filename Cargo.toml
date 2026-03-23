@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/vault-core",
-    "crates/vault-module",
-    "crates/vault-transport",
-    "crates/vault-storage",
-    "crates/vault-client",
+    "crates/core",
+    "crates/modules",
+    "crates/transport",
+    "crates/storage",
+    "crates/client",
     "clients/server",
     "clients/desktop",
 ]
@@ -15,7 +15,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-opaque-ke = "4.0.1"
+opaque-ke = { version = "4.0.1", features = ["argon2", "std"] }
 ml-kem = "0.2"
 snow = "0.10.0"
 blake3 = "1"
@@ -24,7 +24,6 @@ hkdf = "0.12"
 sha2 = "0.10"
 chacha20poly1305 = "0.10"
 zeroize = { version = "1", features = ["derive"] }
-rand = "0.10.0"
 postcard = { version = "1", features = ["alloc"] }
 serde = { version = "1", features = ["derive"] }
 redb = "3.1.1"
@@ -37,9 +36,10 @@ slint = "1"
 thiserror = "2"
 anyhow = "1"
 secrecy = "0.10.3"
+quinn = "0.11"
 
-vault-core = { path = "crates/vault-core" }
-vault-module = { path = "crates/vault-module" }
-vault-transport = { path = "crates/vault-transport" }
-vault-storage = { path = "crates/vault-storage" }
-vault-client = { path = "crates/vault-client" }
+core = { path = "crates/core" }
+modules = { path = "crates/modules" }
+transport = { path = "crates/transport" }
+storage = { path = "crates/storage" }
+client = { path = "crates/client" }

@@ -1,5 +1,5 @@
 [package]
-name = "vault-module"
+name = "modules"
 version.workspace = true
 edition.workspace = true
 
