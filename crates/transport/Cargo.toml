@@ -8,3 +8,4 @@ quinn = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
+snow = { workspace = true }

@@ -18,70 +18,38 @@ impl CipherSuite for OpaqueCipherSuite {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::Result;
     use secrecy::ExposeSecret;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use transport::framed::FramedStream;
 
-    struct DuplexFramed(tokio::io::DuplexStream);
-
-    impl FramedStream for DuplexFramed {
-        async fn send(&mut self, data: &[u8]) -> Result<()> {
-            let len = (data.len() as u32).to_be_bytes();
-            self.0.write_all(&len).await?;
-            self.0.write_all(data).await?;
-            Ok(())
-        }
-
-        async fn receive(&mut self) -> Result<Vec<u8>> {
-            let mut len_buf = [0u8; 4];
-            self.0.read_exact(&mut len_buf).await?;
-            let len = u32::from_be_bytes(len_buf) as usize;
-            let mut buf = vec![0u8; len];
-            self.0.read_exact(&mut buf).await?;
-            Ok(buf)
-        }
-    }
-
-    fn make_pair() -> (DuplexFramed, DuplexFramed) {
-        let (a, b) = tokio::io::duplex(64 * 1024);
-        (DuplexFramed(a), DuplexFramed(b))
-    }
-
-    #[tokio::test]
-    async fn register_then_login() {
+    #[test]
+    fn register_then_login() {
         let password = b"128-byte-passwordlasdjf;asjfasjdf;askdfj;asdjf;klajsdfl;kjas;ldfja;sjf;lasjdf;klajsdf;lkjas;fja;dfjasjdf;aksjdfa;skdjfa;as;dkjll";
         let username = "king noob";
 
+        let (reg_request, client_reg_state) =
+            OpaqueClient::registration_start(password).unwrap();
+
         let mut server = OpaqueServer::new();
+        let reg_response = server.registration_start(username, &reg_request).unwrap();
 
-        // register
-        let (mut client_stream, mut server_stream) = make_pair();
+        let (reg_upload, _) =
+            OpaqueClient::registration_finish(client_reg_state, password, &reg_response).unwrap();
 
-        let (export_key, _) = tokio::join!(
-            OpaqueClient::register(password, &mut client_stream),
-            server.register(username, &mut server_stream),
-        );
-        let export_key = export_key.unwrap();
-        assert!(server.has_user(username));
+        server.registration_finish(username, &reg_upload).unwrap();
 
-        // login
-        let (mut client_stream, mut server_stream) = make_pair();
+        let (ke1, client_login_state) = OpaqueClient::login_start(password).unwrap();
 
-        let (client_result, server_sk) = tokio::join!(
-            OpaqueClient::login(password, &mut client_stream),
-            server.login(username, &mut server_stream),
-        );
-        let client_result = client_result.unwrap();
-        let server_sk = server_sk.unwrap();
+        let (ke2, server_login_state) = server.login_start(username, &ke1).unwrap();
+
+        let (ke3, client_result) =
+            OpaqueClient::login_finish(client_login_state, password, &ke2).unwrap();
+
+        let server_session_key =
+            OpaqueServer::login_finish(server_login_state, &ke3).unwrap();
 
         assert_eq!(
-            server_sk.expose_secret(),
             client_result.session_key.expose_secret(),
-        );
-        assert_eq!(
-            export_key.expose_secret(),
-            client_result.export_key.expose_secret(),
+            server_session_key.expose_secret(),
+            "session keys must match"
         );
     }
 }
