@@ -20,7 +20,6 @@ anyhow = { workspace = true }
 transport = { workspace = true }
 postcard = { workspace = true }
 serde = { workspace = true }
-kem = { workspace = true }
 hybrid-array = { workspace = true }
 
 [dev-dependencies]
