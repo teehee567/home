@@ -5,7 +5,6 @@ use opaque_ke::{
     rand::rngs::OsRng,
 };
 use secrecy::SecretBox;
-use transport::framed::FramedStream;
 use zeroize::Zeroize;
 
 use super::OpaqueCipherSuite;
@@ -15,60 +14,63 @@ pub struct LoginResult {
     pub export_key: SecretBox<[u8; 64]>,
 }
 
+pub struct ClientRegistrationState(ClientRegistration<OpaqueCipherSuite>);
+
+pub struct ClientLoginState(ClientLogin<OpaqueCipherSuite>);
+
 pub struct OpaqueClient;
 
 impl OpaqueClient {
-    pub async fn register(
-        password: &[u8],
-        stream: &mut impl FramedStream,
-    ) -> Result<SecretBox<[u8; 64]>> {
-        // send request to server
+    pub fn registration_start(password: &[u8]) -> Result<(Vec<u8>, ClientRegistrationState)> {
         let mut rng = OsRng;
         let start = ClientRegistration::<OpaqueCipherSuite>::start(&mut rng, password)?;
+        let msg = start.message.serialize().to_vec();
+        Ok((msg, ClientRegistrationState(start.state)))
+    }
 
-        stream.send(&start.message.serialize()).await?;
+    pub fn registration_finish(
+        state: ClientRegistrationState,
+        password: &[u8],
+        response_bytes: &[u8],
+    ) -> Result<(Vec<u8>, SecretBox<[u8; 64]>)> {
+        let mut rng = OsRng;
+        let response = RegistrationResponse::deserialize(response_bytes)?;
+        let finish = state.0.finish(
+            &mut rng,
+            password,
+            response,
+            ClientRegistrationFinishParameters::default(),
+        )?;
+        let msg = finish.message.serialize().to_vec();
+        let mut ek: [u8; 64] = finish.export_key.as_slice().try_into()?;
+        let secret = SecretBox::new(Box::new(ek));
+        ek.zeroize();
+        Ok((msg, secret))
+    }
 
-        // receive registration response
-        let response = RegistrationResponse::deserialize(&stream.receive().await?)?;
+    pub fn login_start(password: &[u8]) -> Result<(Vec<u8>, ClientLoginState)> {
+        let mut rng = OsRng;
+        let start = ClientLogin::<OpaqueCipherSuite>::start(&mut rng, password)?;
+        let msg = start.message.serialize().to_vec();
+        Ok((msg, ClientLoginState(start.state)))
+    }
 
-        let finish = start
-            .state
+    pub fn login_finish(
+        state: ClientLoginState,
+        password: &[u8],
+        ke2_bytes: &[u8],
+    ) -> Result<(Vec<u8>, LoginResult)> {
+        let mut rng = OsRng;
+        let response = CredentialResponse::deserialize(ke2_bytes)?;
+        let finish = state
+            .0
             .finish(
                 &mut rng,
                 password,
                 response,
-                ClientRegistrationFinishParameters::default(),
+                ClientLoginFinishParameters::default(),
             )?;
-
-        // send registration finish
-        stream.send(&finish.message.serialize()).await?;
-
-        let mut ek: [u8; 64] = finish.export_key.as_slice().try_into()?;
-        let secret = SecretBox::new(Box::new(ek));
-        ek.zeroize();
-        Ok(secret)
-    }
-
-    pub async fn login(
-        password: &[u8],
-        stream: &mut impl FramedStream,
-    ) -> Result<LoginResult> {
-        // send login request
-        let mut rng = OsRng;
-        let start = ClientLogin::<OpaqueCipherSuite>::start(&mut rng, password)?;
-
-        stream.send(&start.message.serialize()).await?;
-
-        // receive login response
-        let response = CredentialResponse::deserialize(&stream.receive().await?)?;
-
-        let finish = start
-            .state
-            .finish(&mut rng, password, response, ClientLoginFinishParameters::default())?;
-
-        // send login finish
-        stream.send(&finish.message.serialize()).await?;
-
+        let ke3 = finish.message.serialize().to_vec();
         let mut sk: [u8; 64] = finish.session_key.as_slice().try_into()?;
         let mut ek: [u8; 64] = finish.export_key.as_slice().try_into()?;
         let result = LoginResult {
@@ -77,6 +79,6 @@ impl OpaqueClient {
         };
         sk.zeroize();
         ek.zeroize();
-        Ok(result)
+        Ok((ke3, result))
     }
 }

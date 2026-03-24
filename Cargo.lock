@@ -991,10 +991,14 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "hkdf",
+ "hybrid-array",
+ "kem",
  "ml-kem",
  "opaque-ke",
+ "postcard",
  "rand 0.8.5",
  "secrecy",
+ "serde",
  "sha2",
  "snow",
  "thiserror 2.0.18",
@@ -5552,6 +5556,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "quinn",
+ "snow",
  "thiserror 2.0.18",
  "tokio",
 ]

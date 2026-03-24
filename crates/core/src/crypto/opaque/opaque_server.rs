@@ -7,10 +7,11 @@ use opaque_ke::{
     generic_array::GenericArray, rand::rngs::OsRng,
 };
 use secrecy::SecretBox;
-use transport::framed::FramedStream;
 use zeroize::Zeroize;
 
 use super::OpaqueCipherSuite;
+
+pub struct ServerLoginState(ServerLogin<OpaqueCipherSuite>);
 
 pub struct OpaqueServer {
     server_setup: ServerSetup<OpaqueCipherSuite>,
@@ -26,42 +27,35 @@ impl OpaqueServer {
         }
     }
 
-    pub async fn register(&mut self, username: &str, stream: &mut impl FramedStream) -> Result<()> {
-        // receive registration request
-        let request = RegistrationRequest::deserialize(&stream.receive().await?)?;
-
+    pub fn registration_start(&self, username: &str, request_bytes: &[u8]) -> Result<Vec<u8>> {
+        let request = RegistrationRequest::deserialize(request_bytes)?;
         let start = ServerRegistration::<OpaqueCipherSuite>::start(
             &self.server_setup,
             request,
             username.as_bytes(),
         )?;
+        Ok(start.message.serialize().to_vec())
+    }
 
-        // send registration response
-        stream.send(&start.message.serialize()).await?;
-
-        // receive password file
-        let upload =
-            RegistrationUpload::<OpaqueCipherSuite>::deserialize(&stream.receive().await?)?;
-
+    pub fn registration_finish(&mut self, username: &str, upload_bytes: &[u8]) -> Result<()> {
+        let upload = RegistrationUpload::<OpaqueCipherSuite>::deserialize(upload_bytes)?;
         let password = ServerRegistration::finish(upload);
         self.registered_users
             .insert(username.to_owned(), password.serialize());
         Ok(())
     }
 
-    pub async fn login(
+    pub fn login_start(
         &self,
         username: &str,
-        stream: &mut impl FramedStream,
-    ) -> Result<SecretBox<[u8; 64]>> {
+        ke1_bytes: &[u8],
+    ) -> Result<(Vec<u8>, ServerLoginState)> {
         let pf_bytes = self
             .registered_users
             .get(username)
             .context("unknown user")?;
         let pf = ServerRegistration::<OpaqueCipherSuite>::deserialize(pf_bytes)?;
-
-        // receive credential request
-        let request = CredentialRequest::deserialize(&stream.receive().await?)?;
+        let request = CredentialRequest::deserialize(ke1_bytes)?;
 
         let mut rng = OsRng;
         let start = ServerLogin::start(
@@ -73,23 +67,19 @@ impl OpaqueServer {
             ServerLoginParameters::default(),
         )?;
 
-        // send credential response
-        stream.send(&start.message.serialize()).await?;
+        let ke2 = start.message.serialize().to_vec();
+        Ok((ke2, ServerLoginState(start.state)))
+    }
 
-        // receive credential finalisation
-        let fin = CredentialFinalization::deserialize(&stream.receive().await?)?;
-
-        let result = start
-            .state
+    pub fn login_finish(state: ServerLoginState, ke3_bytes: &[u8]) -> Result<SecretBox<[u8; 64]>> {
+        let fin = CredentialFinalization::deserialize(ke3_bytes)?;
+        let result = state
+            .0
             .finish(fin, ServerLoginParameters::default())?;
 
         let mut sk: [u8; 64] = result.session_key.as_slice().try_into()?;
         let secret = SecretBox::new(Box::new(sk));
         sk.zeroize();
         Ok(secret)
-    }
-
-    pub fn has_user(&self, username: &str) -> bool {
-        self.registered_users.contains_key(username)
     }
 }
