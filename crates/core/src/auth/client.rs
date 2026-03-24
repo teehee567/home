@@ -125,7 +125,11 @@ pub async fn login(
     let (ke3, opaque_result) =
         OpaqueClient::login_finish(opaque_state, password, &f2.opaque_ke2)?;
 
-    // Decrypt at rest key blob with export_key
+    // at rest key is encrypted and returned by server since it is created only on registration
+    // so client needs to decrypt using export key and send back to server so server can decrypt
+    // database stuff
+    // this is correct because otherwise the key derived by sha512 would be different on every login
+    // so the server cant decrypt anything on database
     let ark_enc_key = derive_subkey(
         opaque_result.export_key.expose_secret(),
         &[],
