@@ -5611,6 +5611,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "trait-variant"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70977707304198400eb4835a78f6a9f928bf41bba420deb8fdb175cd965d77a7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "transport"
 version = "0.1.0"
 dependencies = [
@@ -5619,6 +5630,7 @@ dependencies = [
  "snow",
  "thiserror 2.0.18",
  "tokio",
+ "trait-variant",
 ]
 
 [[package]]

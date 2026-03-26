@@ -38,6 +38,7 @@ thiserror = "2"
 anyhow = "1"
 secrecy = "0.10.3"
 quinn = "0.11"
+trait-variant = "0.1"
 
 core = { path = "crates/core" }
 modules = { path = "crates/modules" }
