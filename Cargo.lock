@@ -874,12 +874,12 @@ dependencies = [
 name = "client"
 version = "0.1.0"
 dependencies = [
- "core",
- "modules",
+ "noob-core",
+ "noob-modules",
+ "noob-transport",
  "thiserror 2.0.18",
  "tokio",
  "tonic",
- "transport",
 ]
 
 [[package]]
@@ -988,31 +988,6 @@ dependencies = [
  "objc2-foundation 0.2.2",
  "smithay-clipboard",
  "x11-clipboard",
-]
-
-[[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "blake3",
- "chacha20poly1305",
- "ed25519-dalek",
- "hex",
- "hkdf",
- "home-traits",
- "hybrid-array",
- "ml-kem",
- "opaque-ke",
- "postcard",
- "rand 0.8.5",
- "secrecy",
- "serde",
- "sha2",
- "snow",
- "thiserror 2.0.18",
- "tokio",
- "zeroize",
 ]
 
 [[package]]
@@ -1328,7 +1303,7 @@ name = "desktop"
 version = "0.1.0"
 dependencies = [
  "client",
- "modules",
+ "noob-modules",
  "slint",
  "tokio",
 ]
@@ -2256,14 +2231,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.7",
-]
-
-[[package]]
-name = "home-traits"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "trait-variant",
 ]
 
 [[package]]
@@ -3265,15 +3232,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "modules"
-version = "0.1.0"
-dependencies = [
- "postcard",
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3352,6 +3310,75 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "noob-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "chacha20poly1305",
+ "ed25519-dalek",
+ "hex",
+ "hkdf",
+ "hybrid-array",
+ "ml-kem",
+ "noob-traits",
+ "opaque-ke",
+ "postcard",
+ "rand 0.8.5",
+ "secrecy",
+ "serde",
+ "sha2",
+ "snow",
+ "thiserror 2.0.18",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
+name = "noob-modules"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "noob-storage"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "noob-modules",
+ "postcard",
+ "redb",
+ "serde",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
+name = "noob-traits"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "trait-variant",
+]
+
+[[package]]
+name = "noob-transport"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "noob-core",
+ "noob-traits",
+ "quinn",
+ "secrecy",
+ "snow",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
@@ -4818,14 +4845,14 @@ name = "server"
 version = "0.1.0"
 dependencies = [
  "axum",
- "core",
- "modules",
- "storage",
+ "noob-core",
+ "noob-modules",
+ "noob-storage",
+ "noob-transport",
  "thiserror 2.0.18",
  "tokio",
  "tonic",
  "tower",
- "transport",
 ]
 
 [[package]]
@@ -5168,19 +5195,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "storage"
-version = "0.1.0"
-dependencies = [
- "blake3",
- "modules",
- "postcard",
- "redb",
- "serde",
- "thiserror 2.0.18",
- "tokio",
-]
 
 [[package]]
 name = "strict-num"
@@ -5627,20 +5641,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "transport"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "core",
- "home-traits",
- "quinn",
- "secrecy",
- "snow",
- "thiserror 2.0.18",
- "tokio",
 ]
 
 [[package]]

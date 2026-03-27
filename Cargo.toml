@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/core",
-    "crates/modules",
-    "crates/transport",
-    "crates/storage",
+    "crates/noob-core",
+    "crates/noob-modules",
+    "crates/noob-transport",
+    "crates/noob-storage",
     "crates/client",
-    "crates/home-traits",
+    "crates/noob-traits",
     "clients/server",
     "clients/desktop",
 ]
@@ -41,9 +41,9 @@ secrecy = "0.10.3"
 quinn = "0.11"
 trait-variant = "0.1"
 
-core = { path = "crates/core" }
-modules = { path = "crates/modules" }
-transport = { path = "crates/transport" }
-storage = { path = "crates/storage" }
+noob-core = { path = "crates/noob-core" }
+noob-modules = { path = "crates/noob-modules" }
+noob-transport = { path = "crates/noob-transport" }
+noob-storage = { path = "crates/noob-storage" }
 client = { path = "crates/client" }
-home-traits = { path = "crates/home-traits" }
+noob-traits = { path = "crates/noob-traits" }

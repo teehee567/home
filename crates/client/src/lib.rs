@@ -2,7 +2,7 @@
 pub mod module_client;
 pub mod broadcast_rx;
 
-use modules::Module;
+use noob_modules::Module;
 use std::marker::PhantomData;
 
 pub struct ModuleClient<M: Module> {
@@ -11,7 +11,7 @@ pub struct ModuleClient<M: Module> {
 }
 
 impl<M: Module> ModuleClient<M> {
-    pub async fn send(&self, _req: M::Request) -> Result<M::Response, modules::ModuleError> {
+    pub async fn send(&self, _req: M::Request) -> Result<M::Response, noob_modules::ModuleError> {
         todo!()
     }
 }

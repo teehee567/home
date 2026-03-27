@@ -1,7 +1,7 @@
 use anyhow::Result;
 use quinn::{RecvStream, SendStream};
 
-use home_traits::FramedStream;
+use noob_traits::FramedStream;
 
 pub struct QuicStream {
     send: SendStream,

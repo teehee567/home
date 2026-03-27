@@ -1,10 +1,10 @@
 [package]
-name = "storage"
+name = "noob-storage"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-modules = { workspace = true }
+noob-modules = { workspace = true }
 redb = { workspace = true }
 postcard = { workspace = true }
 serde = { workspace = true }

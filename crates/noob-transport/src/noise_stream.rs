@@ -1,7 +1,7 @@
 use anyhow::Result;
 use snow::TransportState;
 
-use home_traits::FramedStream;
+use noob_traits::FramedStream;
 
 const NOISE_MAX_MSG: usize = 65535;
 

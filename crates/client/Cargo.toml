@@ -4,9 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-core = { workspace = true }
-modules = { workspace = true }
-transport = { workspace = true }
+noob-core = { workspace = true }
+noob-modules = { workspace = true }
+noob-transport = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
 thiserror = { workspace = true }

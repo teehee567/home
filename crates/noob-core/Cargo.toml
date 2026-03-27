@@ -1,10 +1,10 @@
 [package]
-name = "core"
+name = "noob-core"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-home-traits = { workspace = true }
+noob-traits = { workspace = true }
 
 opaque-ke = { workspace = true }
 rand = { version = "0.8", features = ["getrandom"] }
