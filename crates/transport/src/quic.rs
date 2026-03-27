@@ -9,8 +9,8 @@ pub struct QuicStream {
 }
 
 impl QuicStream {
-    pub fn new(send: SendStream, recv: RecvStream) -> Self {
-        Self { send, recv }
+    pub fn new(connection: (SendStream, RecvStream)) -> Self {
+        Self { send: connection.0, recv: connection.1 }
     }
 }
 

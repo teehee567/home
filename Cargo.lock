@@ -1000,6 +1000,7 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "hkdf",
+ "home-traits",
  "hybrid-array",
  "ml-kem",
  "opaque-ke",
@@ -1011,7 +1012,6 @@ dependencies = [
  "snow",
  "thiserror 2.0.18",
  "tokio",
- "transport",
  "zeroize",
 ]
 
@@ -2256,6 +2256,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.7",
+]
+
+[[package]]
+name = "home-traits"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "trait-variant",
 ]
 
 [[package]]
@@ -5626,11 +5634,13 @@ name = "transport"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "core",
+ "home-traits",
  "quinn",
+ "secrecy",
  "snow",
  "thiserror 2.0.18",
  "tokio",
- "trait-variant",
 ]
 
 [[package]]

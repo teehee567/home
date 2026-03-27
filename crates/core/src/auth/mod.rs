@@ -10,7 +10,7 @@ mod tests {
 	use anyhow::Result;
 	use secrecy::ExposeSecret;
 	use tokio::sync::mpsc;
-	use transport::framed::FramedStream;
+	use home_traits::FramedStream;
 
 	use super::{client, server, server_identity::ServerIdentity};
 	use crate::crypto::opaque::OpaqueServer;

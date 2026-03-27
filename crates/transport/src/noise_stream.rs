@@ -21,14 +21,6 @@ impl<T> NoiseStream<T> {
             decrypt_buf: vec![0u8; NOISE_MAX_MSG],
         }
     }
-
-    pub fn inner(&self) -> &T {
-        &self.inner
-    }
-
-    pub fn inner_mut(&mut self) -> &mut T {
-        &mut self.inner
-    }
 }
 
 impl<T: FramedStream> FramedStream for NoiseStream<T> {
