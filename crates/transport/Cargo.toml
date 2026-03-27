@@ -4,9 +4,12 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+home-traits = { workspace = true }
+core = { workspace = true }
+
 quinn = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 snow = { workspace = true }
-trait-variant = { workspace = true }
+secrecy = { workspace = true }

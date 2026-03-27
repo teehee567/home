@@ -6,6 +6,7 @@ members = [
     "crates/transport",
     "crates/storage",
     "crates/client",
+    "crates/home-traits",
     "clients/server",
     "clients/desktop",
 ]
@@ -45,3 +46,4 @@ modules = { path = "crates/modules" }
 transport = { path = "crates/transport" }
 storage = { path = "crates/storage" }
 client = { path = "crates/client" }
+home-traits = { path = "crates/home-traits" }

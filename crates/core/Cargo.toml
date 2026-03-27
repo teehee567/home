@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+home-traits = { workspace = true }
+
 opaque-ke = { workspace = true }
 rand = { version = "0.8", features = ["getrandom"] }
 ml-kem = { workspace = true }
@@ -17,7 +19,6 @@ secrecy = { workspace = true }
 zeroize = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
-transport = { workspace = true }
 postcard = { workspace = true }
 serde = { workspace = true }
 hybrid-array = { workspace = true }
