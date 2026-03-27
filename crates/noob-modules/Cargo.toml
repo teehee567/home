@@ -1,5 +1,5 @@
 [package]
-name = "modules"
+name = "noob-modules"
 version.workspace = true
 edition.workspace = true
 

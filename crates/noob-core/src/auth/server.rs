@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use secrecy::{ExposeSecret, SecretBox};
 use zeroize::Zeroize;
 
-use home_traits::FramedStream;
+use noob_traits::FramedStream;
 
 use crate::crypto::{
     aead,

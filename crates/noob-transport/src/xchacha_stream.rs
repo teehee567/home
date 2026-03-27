@@ -1,8 +1,8 @@
 use anyhow::Result;
 use secrecy::SecretBox;
 
-use core::crypto::aead;
-use home_traits::FramedStream;
+use noob_core::crypto::aead;
+use noob_traits::FramedStream;
 
 pub struct XChaChaStream<T> {
     inner: T,

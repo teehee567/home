@@ -3,7 +3,7 @@ use secrecy::SecretBox;
 use snow::TransportState;
 use quinn::{RecvStream, SendStream};
 
-use home_traits::FramedStream;
+use noob_traits::FramedStream;
 use crate::noise_stream::NoiseStream;
 use crate::quic::QuicStream;
 use crate::xchacha_stream::XChaChaStream;

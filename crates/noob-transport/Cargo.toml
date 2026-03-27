@@ -1,11 +1,11 @@
 [package]
-name = "transport"
+name = "noob-transport"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-home-traits = { workspace = true }
-core = { workspace = true }
+noob-traits = { workspace = true }
+noob-core = { workspace = true }
 
 quinn = { workspace = true }
 anyhow = { workspace = true }
