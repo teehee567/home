@@ -1,5 +1,6 @@
 use anyhow::Result;
 use secrecy::SecretBox;
+use serde::{Serialize, de::DeserializeOwned};
 use snow::TransportState;
 use quinn::{RecvStream, SendStream};
 
@@ -21,6 +22,18 @@ impl CoreStream {
         let noise = NoiseStream::new(quic, noise_transport);
         let xchacha = XChaChaStream::new(noise, module_transport_key);
         Self { inner: xchacha }
+    }
+}
+
+impl CoreStream {
+    pub async fn send_message<T: Serialize>(&mut self, message: &T) -> Result<()> {
+        let bytes = postcard::to_allocvec(message)?;
+        self.inner.send(&bytes).await
+    }
+
+    pub async fn receive_message<T: DeserializeOwned>(&mut self) -> Result<T> {
+        let bytes = self.inner.receive().await?;
+        Ok(postcard::from_bytes(&bytes)?)
     }
 }
 
