@@ -4,10 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-noob-core = { workspace = true }
-noob-modules = { workspace = true }
-noob-transport = { workspace = true }
-noob-storage = { workspace = true }
+noob = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
