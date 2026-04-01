@@ -871,18 +871,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "client"
-version = "0.1.0"
-dependencies = [
- "noob-core",
- "noob-modules",
- "noob-transport",
- "thiserror 2.0.18",
- "tokio",
- "tonic",
-]
-
-[[package]]
 name = "clipboard-win"
 version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1302,8 +1290,7 @@ dependencies = [
 name = "desktop"
 version = "0.1.0"
 dependencies = [
- "client",
- "noob-modules",
+ "noob",
  "slint",
  "tokio",
 ]
@@ -3313,10 +3300,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "noob-core"
+name = "noob"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "blake3",
  "chacha20poly1305",
  "ed25519-dalek",
@@ -3324,63 +3312,21 @@ dependencies = [
  "hkdf",
  "hybrid-array",
  "ml-kem",
- "noob-traits",
  "opaque-ke",
  "postcard",
+ "quinn",
  "rand 0.8.5",
+ "redb",
  "secrecy",
  "serde",
  "sha2",
  "snow",
  "thiserror 2.0.18",
  "tokio",
- "zeroize",
-]
-
-[[package]]
-name = "noob-modules"
-version = "0.1.0"
-dependencies = [
- "postcard",
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "noob-storage"
-version = "0.1.0"
-dependencies = [
- "blake3",
- "noob-modules",
- "postcard",
- "redb",
- "serde",
- "thiserror 2.0.18",
- "tokio",
-]
-
-[[package]]
-name = "noob-traits"
-version = "0.1.0"
-dependencies = [
- "anyhow",
+ "tonic",
+ "tower",
  "trait-variant",
-]
-
-[[package]]
-name = "noob-transport"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "noob-core",
- "noob-traits",
- "postcard",
- "quinn",
- "secrecy",
- "serde",
- "snow",
- "thiserror 2.0.18",
- "tokio",
+ "zeroize",
 ]
 
 [[package]]
@@ -4847,10 +4793,7 @@ name = "server"
 version = "0.1.0"
 dependencies = [
  "axum",
- "noob-core",
- "noob-modules",
- "noob-storage",
- "noob-transport",
+ "noob",
  "thiserror 2.0.18",
  "tokio",
  "tonic",

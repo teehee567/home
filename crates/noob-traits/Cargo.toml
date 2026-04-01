@@ -1,8 +1,0 @@
-[package]
-name = "noob-traits"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-anyhow = { workspace = true }
-trait-variant = { workspace = true }
