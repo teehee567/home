@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+slint = { workspace = true, features = ["renderer-skia"]}
 noob = { workspace = true }
-slint = { workspace = true }
 tokio = { workspace = true }
+
+[build-dependencies]
+slint-build = { workspace = true }

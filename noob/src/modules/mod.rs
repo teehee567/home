@@ -1,3 +1,5 @@
+pub mod genshin;
+
 // base for modules
 use serde::{Deserialize, Serialize};
 

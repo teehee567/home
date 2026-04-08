@@ -28,6 +28,11 @@ axum = { workspace = true }
 tonic = { workspace = true }
 tower = { workspace = true }
 
+sysinfo = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+ferrisetw = { workspace = true }
+
 [dev-dependencies]
 hex = "0.4"
 tokio = { workspace = true }
