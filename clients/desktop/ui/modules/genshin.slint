@@ -1,19 +1,167 @@
-export component GenshinView inherits Rectangle {
-    background: #0d1117;
+export component GenshinFpsBlock inherits Rectangle {
+    in property <string> fps-text: "---";
+    in property <string> status-text: "Genshin Impact not running";
+    in property <bool> running: false;
 
-    in property <string> fps_text: "---";
-    in property <string> status_text: "Genshin Impact not running";
+    horizontal-stretch: 1;
+
+    VerticalLayout {
+        spacing: 2px;
+
+        HorizontalLayout {
+            spacing: 4px;
+            alignment: start;
+
+            Text {
+                text: "GENSHIN FPS";
+                color: #c8a96e;
+                font-size: 10px;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+                vertical-alignment: center;
+            }
+
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 5px;
+                    height: 5px;
+                    border-radius: 3px;
+                    background: root.running ? #3fb950 : #484f58;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 4px;
+            alignment: start;
+
+            Text {
+                text: root.fps-text;
+                color: root.running ? #e6edf3 : #21262d;
+                font-size: 22px;
+                font-weight: 700;
+                vertical-alignment: bottom;
+            }
+
+            Text {
+                text: "fps";
+                color: root.running ? #7d8590 : #21262d;
+                font-size: 11px;
+                vertical-alignment: bottom;
+            }
+        }
+
+        Text {
+            text: root.status-text;
+            color: #484f58;
+            font-size: 10px;
+        }
+    }
+}
+
+export component GenshinPage inherits Rectangle {
+    in property <string> fps-text: "---";
+    in property <string> status-text: "Genshin Impact not running";
     in property <bool> running: false;
 
     VerticalLayout {
-        alignment: center; padding: 28px; spacing: 8px;
-        Text { text: "GENSHIN IMPACT"; color: #c8a96e; font-size: 11px; horizontal-alignment: center; }
-        HorizontalLayout {
-            alignment: center; spacing: 10px;
-            Text { text: root.fps_text; color: root.running ? #e8f0e8 : #303030; font-size: 68px; font-weight: 700; vertical-alignment: center; }
-            Text { text: "FPS"; color: root.running ? #c8a96e : #303030; font-size: 14px; font-weight: 700; vertical-alignment: center; }
+        padding: 20px;
+        spacing: 12px;
+
+        Text {
+            text: "Genshin Impact";
+            color: #e6edf3;
+            font-size: 14px;
+            font-weight: 600;
         }
-        Rectangle { height: 1px; background: #1e2433; }
-        Text { text: root.status_text; color: #505a6e; font-size: 11px; horizontal-alignment: center; }
+
+        Rectangle { height: 1px; background: #161b22; }
+
+        HorizontalLayout {
+            spacing: 20px;
+
+            VerticalLayout {
+                spacing: 2px;
+                horizontal-stretch: 1;
+
+                HorizontalLayout {
+                    spacing: 4px;
+
+                    Text {
+                        text: "FPS";
+                        color: #c8a96e;
+                        font-size: 10px;
+                        font-weight: 600;
+                        letter-spacing: 0.5px;
+                        vertical-alignment: center;
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 5px;
+                            height: 5px;
+                            border-radius: 3px;
+                            background: root.running ? #3fb950 : #484f58;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+
+                    Text {
+                        text: root.fps-text;
+                        color: root.running ? #e6edf3 : #21262d;
+                        font-size: 48px;
+                        font-weight: 700;
+                    }
+
+                    Text {
+                        text: "fps";
+                        color: root.running ? #7d8590 : #21262d;
+                        font-size: 14px;
+                        vertical-alignment: bottom;
+                    }
+                }
+
+                Text {
+                    text: root.status-text;
+                    color: #484f58;
+                    font-size: 10px;
+                }
+            }
+
+            Rectangle { width: 1px; background: #161b22; }
+
+            VerticalLayout {
+                spacing: 2px;
+                horizontal-stretch: 1;
+
+                Text {
+                    text: "RESIN";
+                    color: #c8a96e;
+                    font-size: 10px;
+                    font-weight: 600;
+                    letter-spacing: 0.5px;
+                }
+
+                Text {
+                    text: "---/160";
+                    color: #21262d;
+                    font-size: 48px;
+                    font-weight: 700;
+                }
+
+                Text {
+                    text: "Not connected";
+                    color: #484f58;
+                    font-size: 10px;
+                }
+            }
+        }
+
+        Rectangle { vertical-stretch: 1; }
     }
 }

@@ -1,0 +1,112 @@
+import { GenshinFpsBlock } from "../modules/genshin.slint";
+
+component StatusBlock inherits Rectangle {
+    in property <string> title;
+    in property <color> accent: #484f58;
+    in property <string> value: "---";
+    in property <string> status: "Not connected";
+    in property <bool> active: false;
+
+    horizontal-stretch: 1;
+
+    VerticalLayout {
+        spacing: 2px;
+
+        Text {
+            text: root.title;
+            color: root.accent;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        Text {
+            text: root.value;
+            color: root.active ? #e6edf3 : #21262d;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        Text {
+            text: root.status;
+            color: #484f58;
+            font-size: 10px;
+        }
+    }
+}
+
+export component Dashboard inherits Rectangle {
+    in property <string> fps-text;
+    in property <string> status-text;
+    in property <bool> running;
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 12px;
+
+        Text {
+            text: "Dashboard";
+            color: #e6edf3;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        Rectangle { height: 1px; background: #161b22; }
+
+        HorizontalLayout {
+            spacing: 20px;
+
+            GenshinFpsBlock {
+                fps-text: root.fps-text;
+                status-text: root.status-text;
+                running: root.running;
+            }
+
+            Rectangle { width: 1px; background: #161b22; }
+
+            StatusBlock {
+                title: "RESIN";
+                accent: #c8a96e;
+                value: "---/160";
+                status: "Not connected";
+            }
+
+            Rectangle { width: 1px; background: #161b22; }
+
+            StatusBlock {
+                title: "FINANCE";
+                accent: #58a6ff;
+                value: "---";
+                status: "Not configured";
+            }
+        }
+
+        Rectangle { height: 1px; background: #161b22; }
+
+        HorizontalLayout {
+            spacing: 20px;
+
+            StatusBlock {
+                title: "UNI";
+                accent: #bc8cff;
+                value: "0 due";
+                status: "No data";
+            }
+
+            Rectangle { width: 1px; background: #161b22; }
+
+            StatusBlock {
+                title: "NUTRITION";
+                accent: #3fb950;
+                value: "--- kcal";
+                status: "Not configured";
+            }
+
+            Rectangle { width: 1px; background: #161b22; }
+
+            Rectangle { horizontal-stretch: 1; }
+        }
+
+        Rectangle { vertical-stretch: 1; }
+    }
+}
