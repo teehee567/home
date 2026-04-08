@@ -1,0 +1,19 @@
+import { GenshinView } from "modules/genshin.slint";
+
+export component App inherits Window {
+    title: "Genshin FPS";
+    icon: @image-url("../../../data/icons/larger_noob.png");
+    width: 340px;
+    height: 205px;
+    background: #0d1117;
+
+    in property <string> fps_text: "---";
+    in property <string> status_text: "Genshin Impact not running";
+    in property <bool> running: false;
+
+    GenshinView {
+        fps_text: root.fps_text;
+        status_text: root.status_text;
+        running: root.running;
+    }
+}
