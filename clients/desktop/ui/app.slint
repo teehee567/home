@@ -1,19 +1,137 @@
-import { GenshinView } from "modules/genshin.slint";
+import { Dashboard } from "pages/dashboard.slint";
+import { GenshinPage } from "modules/genshin.slint";
+
+component NavItem inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked;
+
+    height: 28px;
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        Rectangle {
+            width: 2px;
+            background: root.active ? #58a6ff : transparent;
+        }
+
+        HorizontalLayout {
+            padding-left: 10px;
+
+            Text {
+                text: root.label;
+                color: root.active ? #e6edf3 : ta.has-hover ? #b1bac4 : #7d8590;
+                font-size: 12px;
+                font-weight: root.active ? 600 : 400;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+component PlaceholderPage inherits Rectangle {
+    in property <string> title;
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 4px;
+
+        Text {
+            text: root.title;
+            color: #e6edf3;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        Text {
+            text: "Not implemented";
+            color: #484f58;
+            font-size: 11px;
+        }
+
+        Rectangle { vertical-stretch: 1; }
+    }
+}
 
 export component App inherits Window {
-    title: "Genshin FPS";
+    title: "noob";
     icon: @image-url("../../../data/icons/larger_noob.png");
-    width: 340px;
-    height: 205px;
+    width: 880px;
+    height: 520px;
     background: #0d1117;
 
-    in property <string> fps_text: "---";
-    in property <string> status_text: "Genshin Impact not running";
+    in property <string> fps-text: "---";
+    in property <string> status-text: "Genshin Impact not running";
     in property <bool> running: false;
 
-    GenshinView {
-        fps_text: root.fps_text;
-        status_text: root.status_text;
-        running: root.running;
+    property <int> current-tab: 0;
+
+    HorizontalLayout {
+        Rectangle {
+            width: 110px;
+            background: #010409;
+
+            VerticalLayout {
+                padding-top: 12px;
+                spacing: 0px;
+
+                HorizontalLayout {
+                    height: 28px;
+                    padding-left: 12px;
+
+                    Text {
+                        text: "NOOB";
+                        color: #7d8590;
+                        font-size: 10px;
+                        font-weight: 700;
+                        letter-spacing: 1.5px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle { height: 1px; background: #21262d; }
+
+                NavItem { label: "Dashboard"; active: current-tab == 0; clicked => { current-tab = 0; } }
+                NavItem { label: "Finance"; active: current-tab == 1; clicked => { current-tab = 1; } }
+                NavItem { label: "Genshin"; active: current-tab == 2; clicked => { current-tab = 2; } }
+                NavItem { label: "Star Rail"; active: current-tab == 3; clicked => { current-tab = 3; } }
+                NavItem { label: "Uni"; active: current-tab == 4; clicked => { current-tab = 4; } }
+                NavItem { label: "Nutrition"; active: current-tab == 5; clicked => { current-tab = 5; } }
+                NavItem { label: "Files"; active: current-tab == 6; clicked => { current-tab = 6; } }
+
+                Rectangle { vertical-stretch: 1; }
+
+                Rectangle { height: 1px; background: #21262d; }
+                NavItem { label: "Settings"; active: current-tab == 7; clicked => { current-tab = 7; } }
+                Rectangle { height: 4px; }
+            }
+        }
+
+        Rectangle { width: 1px; background: #21262d; }
+
+        Rectangle {
+            horizontal-stretch: 1;
+
+            if current-tab == 0 : Dashboard {
+                fps-text: root.fps-text;
+                status-text: root.status-text;
+                running: root.running;
+            }
+            if current-tab == 1 : PlaceholderPage { title: "Finance"; }
+            if current-tab == 2 : GenshinPage {
+                fps-text: root.fps-text;
+                status-text: root.status-text;
+                running: root.running;
+            }
+            if current-tab == 3 : PlaceholderPage { title: "Star Rail"; }
+            if current-tab == 4 : PlaceholderPage { title: "Uni"; }
+            if current-tab == 5 : PlaceholderPage { title: "Nutrition"; }
+            if current-tab == 6 : PlaceholderPage { title: "Files"; }
+            if current-tab == 7 : PlaceholderPage { title: "Settings"; }
+        }
     }
 }
