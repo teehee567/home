@@ -43,5 +43,7 @@ trait-variant = "0.1"
 sysinfo = "0.33"
 winreg = "0.52"
 ferrisetw = "1"
+dirs-next = "2"
+rfd = "0.15"
 
 noob = { path = "noob" }

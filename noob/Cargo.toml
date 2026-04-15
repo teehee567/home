@@ -29,6 +29,7 @@ tonic = { workspace = true }
 tower = { workspace = true }
 
 sysinfo = { workspace = true }
+dirs-next = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 ferrisetw = { workspace = true }

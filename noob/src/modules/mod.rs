@@ -1,4 +1,5 @@
 pub mod genshin;
+pub mod app_watcher;
 
 // base for modules
 use serde::{Deserialize, Serialize};
