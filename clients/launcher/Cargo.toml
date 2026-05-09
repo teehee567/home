@@ -1,0 +1,18 @@
+[package]
+name = "launcher"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "launcher"
+path = "src/bin/launcher.rs"
+
+[[bin]]
+name = "postinstall"
+path = "src/bin/postinstall.rs"
+
+[build-dependencies]
+embed-manifest = "1.4"

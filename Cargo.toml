@@ -4,6 +4,8 @@ members = [
     "noob",
     "clients/server",
     "clients/desktop",
+    "clients/launcher",
+    "clients/dev-runner",
 ]
 
 [profile.profiling]

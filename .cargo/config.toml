@@ -1,0 +1,2 @@
+[target.'cfg(windows)']
+runner = ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".cargo/dev-runner.ps1"]

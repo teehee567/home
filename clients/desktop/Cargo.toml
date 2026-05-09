@@ -11,3 +11,5 @@ rfd = { workspace = true }
 
 [build-dependencies]
 slint-build = { workspace = true }
+winres = "0.1"
+embed-manifest = "1.4"

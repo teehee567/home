@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle Name="Noob"
+          Manufacturer="Noob"
+          Version="$(var.Version)"
+          UpgradeCode="A2F6910E-E096-444B-A547-CFC3BEBE1B47"
+          IconSourceFile="$(var.Icon)">
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+        Theme="hyperlinkSidebarLicense"
+        SuppressOptionsUI="yes"
+        ShowVersion="yes"
+        LicenseUrl=""
+        LogoFile="$(var.LogoPng)"
+        LogoSideFile="$(var.SidebarPng)" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <MsiPackage SourceFile="$(var.MsiPath)"
+                  DisplayName="Noob"
+                  Description="Noob home system"
+                  Vital="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

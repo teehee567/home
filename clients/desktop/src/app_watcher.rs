@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use noob::modules::app_watcher::{self, WatcherCommand};
 use slint::ComponentHandle;
 
@@ -18,7 +20,7 @@ pub fn setup(app: &App) {
                         error_text: a.error.into(),
                     })
                     .collect();
-                app.set_watcher_apps(std::rc::Rc::new(slint::VecModel::from(items)).into());
+                app.set_watcher_apps(Rc::new(slint::VecModel::from(items)).into());
             })
             .ok();
     });

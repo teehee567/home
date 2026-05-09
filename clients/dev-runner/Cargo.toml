@@ -1,0 +1,8 @@
+[package]
+name = "dev-runner"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+launcher = { path = "../launcher" }

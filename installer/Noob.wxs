@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Noob"
+           Manufacturer="Noob"
+           Version="$(var.Version)"
+           UpgradeCode="7EEA1912-4473-41D6-A5B1-FE5A608425F2"
+           Compressed="yes"
+           Scope="perMachine"
+           InstallerVersion="500">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="MSIUSEREALADMINDETECTION" Value="1" />
+    <Launch Condition="Privileged" Message="Noob must be installed with administrator privileges. Right-click the MSI and choose Install, or run msiexec elevated." />
+
+    <Icon Id="NoobIcon.ico" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="NoobIcon.ico" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Noob" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component>
+        <File Id="LauncherExe" Source="$(var.BinDir)\launcher.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="ProgramMenuFolder"
+                    Name="Noob"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="NoobIcon.ico"
+                    Advertise="yes" />
+        </File>
+      </Component>
+      <Component>
+        <File Id="DesktopExe" Source="$(var.BinDir)\desktop.exe" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Id="PostinstallExe" Source="$(var.BinDir)\postinstall.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="Noob" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+
+    <CustomAction Id="DoPostInstall" FileRef="PostinstallExe" ExeCommand="1 &quot;[UserSID]&quot;"
+                  Execute="deferred" Impersonate="no" Return="check" />
+    <CustomAction Id="DoPreUninstall" FileRef="PostinstallExe" ExeCommand="0"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="DoPreUninstall" Before="RemoveFiles"
+              Condition="REMOVE=&quot;ALL&quot; OR WIX_UPGRADE_DETECTED" />
+      <Custom Action="DoPostInstall" After="InstallFiles" Condition="NOT REMOVE" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>
