@@ -1,3 +1,4 @@
+#[cfg(windows)]
 pub mod genshin;
 pub mod app_watcher;
 

@@ -2,10 +2,12 @@
 
 use std::env;
 
+#[cfg(windows)]
 use noob::modules::genshin::GenshinModule;
 use tokio::runtime::Runtime;
 
 mod app_watcher;
+#[cfg(windows)]
 mod genshin;
 
 slint::include_modules!();
@@ -19,10 +21,12 @@ fn main() {
 
     let app = App::new().unwrap();
 
+    #[cfg(windows)]
     genshin::setup(&app);
     app_watcher::setup(&app);
 
     app.window().on_close_requested(move || {
+        #[cfg(windows)]
         GenshinModule::stop_etw();
         slint::CloseRequestResponse::HideWindow
     });

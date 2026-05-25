@@ -1,3 +1,4 @@
+#[cfg(windows)]
 mod fps_etw;
 
 use std::sync::Arc;
