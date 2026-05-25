@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result, bail};
 use secrecy::{ExposeSecret, SecretBox};
 use zeroize::Zeroize;
@@ -115,10 +117,10 @@ pub async fn login(
     let f2: Flight2Payload =
         postcard::from_bytes(&payload_buf[..plen]).context("malformed flight 2")?;
 
-    // handshake hash, transition noise to transport mode
+    // handshake hash, transition noise to stateless transport mode
     let handshake_hash = initiator.get_handshake_hash().to_vec();
     let mut transport = initiator
-        .into_transport_mode()
+        .into_stateless_transport_mode()
         .map_err(|e| anyhow::anyhow!("noise transport: {e}"))?;
 
     // OPAQUE login finish -> KE3 + session_key + export_key
@@ -146,14 +148,14 @@ pub async fn login(
     );
     let encrypted_ark = aead::encrypt(&ark_tx_key, &at_rest_key_bytes)?;
 
-    // send flight 3 over Noise transport
+    // send flight 3 over pre-rekey Noise transport (initiator-send nonce 0)
     let f3_bytes = postcard::to_allocvec(&Flight3Message {
         opaque_ke3: ke3,
         encrypted_at_rest_key: encrypted_ark,
     })?;
     let mut buf = vec![0u8; f3_bytes.len() + 64];
     let len = transport
-        .write_message(&f3_bytes, &mut buf)
+        .write_message(0, &f3_bytes, &mut buf)
         .map_err(|e| anyhow::anyhow!("noise write flight 3: {e}"))?;
     stream.send(&buf[..len]).await?;
 
@@ -163,18 +165,20 @@ pub async fn login(
         &ml_kem_ss,
         &opaque_result.session_key,
     );
-    noise::rekey_transport(&mut transport, &final_key, &handshake_hash);
+    noise::rekey_stateless(&mut transport, &final_key, &handshake_hash);
 
-    // receive flight 4 (key confirmation) over new noise
+    // receive flight 4 (key confirmation) over post-rekey noise (responder-send nonce 0)
     let f4_encrypted = stream.receive().await?;
-    let f4_plain = noise::noise_decrypt(&mut transport, &f4_encrypted)
-        .context("flight 4 key confirmation failed")?;
-    if f4_plain != HANDSHAKE_OK {
+    let mut f4_buf = vec![0u8; NOISE_MSG_BUF];
+    let f4_len = transport
+        .read_message(0, &f4_encrypted, &mut f4_buf)
+        .map_err(|e| anyhow::anyhow!("flight 4 key confirmation failed: {e}"))?;
+    if &f4_buf[..f4_len] != HANDSHAKE_OK {
         bail!("handshake key confirmation mismatch");
     }
 
     Ok(ClientHandshakeResult {
-        transport,
+        transport: Arc::new(transport),
         transport_key: final_key,
         session_key: opaque_result.session_key,
         export_key: opaque_result.export_key,

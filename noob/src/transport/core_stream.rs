@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use secrecy::SecretBox;
 use serde::{Serialize, de::DeserializeOwned};
-use snow::TransportState;
+use snow::StatelessTransportState;
 use quinn::{RecvStream, SendStream};
 
 use crate::traits::FramedStream;
@@ -16,11 +18,12 @@ pub struct CoreStream {
 impl CoreStream {
     pub fn new(
         connection: (SendStream, RecvStream),
-        noise_transport: TransportState,
+        noise_transport: Arc<StatelessTransportState>,
+        stream_id: u16,
         module_transport_key: SecretBox<[u8; 32]>,
     ) -> Self {
         let quic = QuicStream::new(connection);
-        let noise = NoiseStream::new(quic, noise_transport);
+        let noise = NoiseStream::new(quic, noise_transport, stream_id);
         let xchacha = XChaChaStream::new(noise, module_transport_key);
         Self { inner: xchacha }
     }

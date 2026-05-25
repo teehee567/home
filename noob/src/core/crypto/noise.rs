@@ -7,7 +7,6 @@ use super::keys::derive_subkey;
 use snow::params::NoiseParams;
 
 pub const NOISE_PATTERN: &str = "Noise_IK_25519_ChaChaPoly_SHA256";
-const NOISE_MSG_BUF: usize = 65535;
 
 /// build noise initiator
 pub fn build_initiator(
@@ -41,8 +40,8 @@ fn noise_params() -> NoiseParams {
     NOISE_PATTERN.parse().unwrap()
 }
 
-pub fn rekey_transport(
-    transport: &mut snow::TransportState,
+pub fn rekey_stateless(
+    transport: &mut snow::StatelessTransportState,
     final_key: &SecretBox<[u8; 32]>,
     handshake_hash: &[u8],
 ) {
@@ -60,28 +59,4 @@ pub fn rekey_transport(
         Some(initiator_key.expose_secret()),
         Some(responder_key.expose_secret()),
     );
-}
-
-pub fn noise_encrypt(
-    transport: &mut snow::TransportState,
-    plaintext: &[u8],
-) -> Result<Vec<u8>> {
-    let mut buf = vec![0u8; plaintext.len() + NOISE_MSG_BUF];
-    let len = transport
-        .write_message(plaintext, &mut buf)
-        .map_err(|e| anyhow::anyhow!("noise write: {e}"))?;
-    buf.truncate(len);
-    Ok(buf)
-}
-
-pub fn noise_decrypt(
-    transport: &mut snow::TransportState,
-    ciphertext: &[u8],
-) -> Result<Vec<u8>> {
-    let mut buf = vec![0u8; NOISE_MSG_BUF];
-    let len = transport
-        .read_message(ciphertext, &mut buf)
-        .map_err(|e| anyhow::anyhow!("noise read: {e}"))?;
-    buf.truncate(len);
-    Ok(buf)
 }

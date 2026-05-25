@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use secrecy::{ExposeSecret, SecretBox};
 use zeroize::Zeroize;
@@ -103,17 +105,17 @@ pub async fn handle_login(
         .map_err(|e| anyhow::anyhow!("noise write flight 2: {e}"))?;
     stream.send(&buf[..len]).await?;
 
-    // handshake hash, enter transport mode
+    // handshake hash, enter stateless transport mode
     let handshake_hash = responder.get_handshake_hash().to_vec();
     let mut transport = responder
-        .into_transport_mode()
+        .into_stateless_transport_mode()
         .map_err(|e| anyhow::anyhow!("noise transport: {e}"))?;
 
-    // receive Flight 3 over Noise
+    // receive Flight 3 over Noise (pre-rekey, initiator-send nonce 0)
     let f3_encrypted = stream.receive().await?;
     let mut payload_buf = vec![0u8; NOISE_MSG_BUF];
     let plen = transport
-        .read_message(&f3_encrypted, &mut payload_buf)
+        .read_message(0, &f3_encrypted, &mut payload_buf)
         .map_err(|e| anyhow::anyhow!("noise read flight 3: {e}"))?;
     let f3: Flight3Message =
         postcard::from_bytes(&payload_buf[..plen]).context("malformed flight 3")?;
@@ -137,14 +139,17 @@ pub async fn handle_login(
     // derive final transport key and rekey the Noise session
     let final_key =
         hybrid::derive_final_transport_key(&handshake_hash, &ml_kem_ss, &session_key);
-    noise::rekey_transport(&mut transport, &final_key, &handshake_hash);
+    noise::rekey_stateless(&mut transport, &final_key, &handshake_hash);
 
-    // send Flight 4 (key confirmation) over new noise
-    let f4 = noise::noise_encrypt(&mut transport, HANDSHAKE_OK)?;
-    stream.send(&f4).await?;
+    // send Flight 4 (key confirmation) over post-rekey noise (responder-send nonce 0)
+    let mut buf = vec![0u8; NOISE_MSG_BUF];
+    let len = transport
+        .write_message(0, HANDSHAKE_OK, &mut buf)
+        .map_err(|e| anyhow::anyhow!("noise write flight 4: {e}"))?;
+    stream.send(&buf[..len]).await?;
 
     Ok(ServerHandshakeResult {
-        transport,
+        transport: Arc::new(transport),
         transport_key: final_key,
         session_key,
         at_rest_key,

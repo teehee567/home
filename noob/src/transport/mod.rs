@@ -7,10 +7,13 @@ pub mod frame;
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::noise_stream::NoiseStream;
     use super::xchacha_stream::XChaChaStream;
     use crate::traits::FramedStream;
     use secrecy::SecretBox;
+    use snow::StatelessTransportState;
     use tokio::sync::mpsc;
 
     struct Chan {
@@ -33,7 +36,7 @@ mod tests {
         }
     }
 
-    fn noise_pair() -> (snow::TransportState, snow::TransportState) {
+    fn noise_pair() -> (Arc<StatelessTransportState>, Arc<StatelessTransportState>) {
         let p: snow::params::NoiseParams = "Noise_IK_25519_ChaChaPoly_BLAKE2s".parse().unwrap();
         let ck = snow::Builder::new(p.clone()).generate_keypair().unwrap();
         let sk = snow::Builder::new(p.clone()).generate_keypair().unwrap();
@@ -47,7 +50,10 @@ mod tests {
         res.read_message(&a[..n], &mut b).unwrap();
         let n = res.write_message(&[], &mut a).unwrap();
         ini.read_message(&a[..n], &mut b).unwrap();
-        (ini.into_transport_mode().unwrap(), res.into_transport_mode().unwrap())
+        (
+            Arc::new(ini.into_stateless_transport_mode().unwrap()),
+            Arc::new(res.into_stateless_transport_mode().unwrap()),
+        )
     }
 
     #[tokio::test]
@@ -57,11 +63,31 @@ mod tests {
         let (wire_a, wire_b) = chan_pair();
         let key = || SecretBox::new(Box::new([42u8; 32]));
 
-        let mut sender = XChaChaStream::new(NoiseStream::new(wire_a, ini_noise), key());
-        let mut receiver = XChaChaStream::new(NoiseStream::new(wire_b, res_noise), key());
+        let mut sender = XChaChaStream::new(NoiseStream::new(wire_a, ini_noise, 1), key());
+        let mut receiver = XChaChaStream::new(NoiseStream::new(wire_b, res_noise, 1), key());
 
         sender.send(msg).await.unwrap();
         let got = receiver.receive().await.unwrap();
         assert_eq!(got, msg, "roundtrip failed");
+    }
+
+    #[tokio::test]
+    async fn multiple_streams_share_one_transport() {
+        let (ini_noise, res_noise) = noise_pair();
+        let (wire_a1, wire_b1) = chan_pair();
+        let (wire_a2, wire_b2) = chan_pair();
+
+        let mut s1 = NoiseStream::new(wire_a1, ini_noise.clone(), 1);
+        let mut r1 = NoiseStream::new(wire_b1, res_noise.clone(), 1);
+        let mut s2 = NoiseStream::new(wire_a2, ini_noise, 2);
+        let mut r2 = NoiseStream::new(wire_b2, res_noise, 2);
+
+        s1.send(b"stream one msg a").await.unwrap();
+        s2.send(b"stream two msg a").await.unwrap();
+        s1.send(b"stream one msg b").await.unwrap();
+
+        assert_eq!(r1.receive().await.unwrap(), b"stream one msg a");
+        assert_eq!(r2.receive().await.unwrap(), b"stream two msg a");
+        assert_eq!(r1.receive().await.unwrap(), b"stream one msg b");
     }
 }

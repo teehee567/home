@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use secrecy::SecretBox;
 use serde::{Deserialize, Serialize};
+use snow::StatelessTransportState;
 
 pub const HANDSHAKE_OK: &[u8] = b"MEOW_OK";
 
@@ -55,7 +58,7 @@ pub struct ClientEnrollment {
 
 /// keys from successful client login
 pub struct ClientHandshakeResult {
-    pub transport: snow::TransportState,
+    pub transport: Arc<StatelessTransportState>,
     pub transport_key: SecretBox<[u8; 32]>,
     pub session_key: SecretBox<[u8; 64]>,
     pub export_key: SecretBox<[u8; 64]>,
@@ -63,7 +66,7 @@ pub struct ClientHandshakeResult {
 
 /// keys from successful server login
 pub struct ServerHandshakeResult {
-    pub transport: snow::TransportState,
+    pub transport: Arc<StatelessTransportState>,
     pub transport_key: SecretBox<[u8; 32]>,
     pub session_key: SecretBox<[u8; 64]>,
     pub at_rest_key: SecretBox<[u8; 32]>,
