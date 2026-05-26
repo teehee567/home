@@ -3,6 +3,10 @@ name = "noob"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = ["test-utils"]
+test-utils = []
+
 [dependencies]
 opaque-ke = { workspace = true }
 rand = { version = "0.8", features = ["getrandom"] }
@@ -17,6 +21,9 @@ secrecy = { workspace = true }
 zeroize = { workspace = true }
 postcard = { workspace = true }
 serde = { workspace = true }
+bytes = { workspace = true }
+parking_lot = { workspace = true }
+rustc-hash = { workspace = true }
 hybrid-array = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -37,3 +44,9 @@ ferrisetw = { workspace = true }
 [dev-dependencies]
 hex = "0.4"
 tokio = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "noob"
+harness = false
+required-features = ["test-utils"]
