@@ -1,27 +1,19 @@
 use std::sync::Arc;
 
-use crate::traits::{FramedReceiver, FramedSender, FramedStream, SplittableStream};
+use super::duplex::Duplex;
+use crate::traits::{FramedReceiver, FramedSender};
 use snow::StatelessTransportState;
 use tokio::sync::mpsc;
 
-pub struct Chan {
-    pub tx: mpsc::UnboundedSender<Vec<u8>>,
-    pub rx: mpsc::UnboundedReceiver<Vec<u8>>,
-}
+pub type Chan = Duplex<ChanReader, ChanWriter>;
 
 pub fn chan_pair() -> (Chan, Chan) {
     let (tx1, rx1) = mpsc::unbounded_channel();
     let (tx2, rx2) = mpsc::unbounded_channel();
-    (Chan { tx: tx1, rx: rx2 }, Chan { tx: tx2, rx: rx1 })
-}
-
-impl FramedStream for Chan {
-    async fn send(&mut self, data: &[u8]) -> anyhow::Result<()> {
-        self.tx.send(data.to_vec()).map_err(|e| anyhow::anyhow!(e))
-    }
-    async fn receive(&mut self) -> anyhow::Result<Vec<u8>> {
-        self.rx.recv().await.ok_or_else(|| anyhow::anyhow!("closed"))
-    }
+    (
+        Duplex::from_halves(ChanReader { rx: rx2 }, ChanWriter { tx: tx1 }),
+        Duplex::from_halves(ChanReader { rx: rx1 }, ChanWriter { tx: tx2 }),
+    )
 }
 
 pub struct ChanReader {
@@ -41,14 +33,6 @@ impl FramedReceiver for ChanReader {
 impl FramedSender for ChanWriter {
     async fn send(&mut self, data: &[u8]) -> anyhow::Result<()> {
         self.tx.send(data.to_vec()).map_err(|e| anyhow::anyhow!(e))
-    }
-}
-
-impl SplittableStream for Chan {
-    type Reader = ChanReader;
-    type Writer = ChanWriter;
-    fn split(self) -> (ChanReader, ChanWriter) {
-        (ChanReader { rx: self.rx }, ChanWriter { tx: self.tx })
     }
 }
 

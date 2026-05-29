@@ -1,3 +1,4 @@
+pub mod duplex;
 pub mod quic;
 pub mod noise_stream;
 pub mod xchacha_stream;

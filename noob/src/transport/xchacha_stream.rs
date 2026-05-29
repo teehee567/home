@@ -3,44 +3,28 @@ use std::sync::Arc;
 use anyhow::Result;
 use secrecy::SecretBox;
 
+use super::duplex::Duplex;
 use crate::core::crypto::aead;
-use crate::traits::{FramedReceiver, FramedSender, FramedStream, SplittableStream};
+use crate::traits::{FramedReceiver, FramedSender, SplittableStream};
 
-pub struct XChaChaStream<T> {
-    inner: T,
-    key: Arc<SecretBox<[u8; 32]>>,
-}
+pub type XChaChaStream<R, W> = Duplex<XChaChaReader<R>, XChaChaWriter<W>>;
 
-impl<T> XChaChaStream<T> {
-    pub fn new(inner: T, key: SecretBox<[u8; 32]>) -> Self {
-        Self { inner, key: Arc::new(key) }
+impl<R, W> Duplex<XChaChaReader<R>, XChaChaWriter<W>> {
+    pub fn new<I>(inner: I, key: SecretBox<[u8; 32]>) -> Self
+    where
+        I: SplittableStream<Reader = R, Writer = W>,
+    {
+        Self::from_arc(inner, Arc::new(key))
     }
 
-    pub fn from_arc(inner: T, key: Arc<SecretBox<[u8; 32]>>) -> Self {
-        Self { inner, key }
-    }
-}
-
-impl<T: FramedStream> FramedStream for XChaChaStream<T> {
-    async fn send(&mut self, data: &[u8]) -> Result<()> {
-        let out = aead::encrypt(&self.key, data)?;
-        self.inner.send(&out).await
-    }
-
-    async fn receive(&mut self) -> Result<Vec<u8>> {
-        let raw = self.inner.receive().await?;
-        aead::decrypt(&self.key, &raw)
-    }
-}
-
-impl<T: SplittableStream> SplittableStream for XChaChaStream<T> {
-    type Writer = XChaChaWriter<T::Writer>;
-    type Reader = XChaChaReader<T::Reader>;
-    fn split(self) -> (Self::Reader, Self::Writer) {
-        let (r, w) = self.inner.split();
-        (
-            XChaChaReader { inner: r, key: self.key.clone(), decrypt_buf: Vec::new() },
-            XChaChaWriter { inner: w, key: self.key, encrypt_buf: Vec::new() },
+    pub fn from_arc<I>(inner: I, key: Arc<SecretBox<[u8; 32]>>) -> Self
+    where
+        I: SplittableStream<Reader = R, Writer = W>,
+    {
+        let (r, w) = inner.split();
+        Duplex::from_halves(
+            XChaChaReader { inner: r, key: key.clone(), decrypt_buf: Vec::new() },
+            XChaChaWriter { inner: w, key, encrypt_buf: Vec::new() },
         )
     }
 }
@@ -70,4 +54,3 @@ impl<W: FramedSender> FramedSender for XChaChaWriter<W> {
         self.inner.send(&self.encrypt_buf).await
     }
 }
-
