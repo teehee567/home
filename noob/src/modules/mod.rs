@@ -1,34 +1,194 @@
 #[cfg(windows)]
 pub mod genshin;
 pub mod app_watcher;
+pub mod sys_info;
+mod registry;
 
-// base for modules
-use serde::{Deserialize, Serialize};
+pub use registry::{ModuleId, Modules};
 
-pub type ModuleId = u16;
+use std::future::Future;
 
-pub trait Module: Send + Sync + 'static {
-    const ID: ModuleId;
-    const NAME: &str;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use tokio::sync::{broadcast, mpsc, oneshot};
 
-    type Request: Serialize + for<'de> Deserialize<'de> + Send;
-    type Response: Serialize + for<'de> Deserialize<'de> + Send;
+use crate::transport::frame::{Frame, FrameKind, error_frame};
 
-    fn handle(&self, req: Self::Request) -> Result<Self::Response, ModuleError>;
-}
-
-pub trait BroadcastModule: Module {
-    type Broadcast: Serialize + for<'de> Deserialize<'de> + Send + Clone;
-}
+const REQUEST_CAP: usize = 128;
+const EVENT_CAP: usize = 64;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ModuleError {
-    #[error("module not found: {0}")]
-    NotFound(ModuleId),
-
     #[error("serialization error: {0}")]
     Serialization(#[from] postcard::Error),
 
     #[error("{0}")]
     Other(String),
+}
+
+// no sync so data doesnt have to be shared
+pub trait Module: Send + Sized + 'static {
+    const NAME: &str;
+
+    type Request: Serialize + DeserializeOwned + Send + 'static;
+    type Response: Serialize + DeserializeOwned + Send + 'static;
+    type Event: Clone + Send + 'static;
+
+    fn new() -> Self;
+
+    fn run(self, ctx: Context<Self>) -> impl Future<Output = ()> + Send;
+}
+
+pub struct Request<M: Module> {
+    pub payload: M::Request,
+    reply: oneshot::Sender<Result<M::Response, ModuleError>>,
+}
+
+impl<M: Module> Request<M> {
+    pub fn reply(self, result: Result<M::Response, ModuleError>) {
+        let _ = self.reply.send(result);
+    }
+}
+
+/// inside run, queue + event publisher
+pub struct Context<M: Module> {
+    rx: mpsc::Receiver<Request<M>>,
+    events: broadcast::Sender<M::Event>,
+}
+
+impl<M: Module> Context<M> {
+    pub async fn recv(&mut self) -> Option<Request<M>> {
+        self.rx.recv().await
+    }
+
+    pub fn publish(&self, event: M::Event) {
+        let _ = self.events.send(event);
+    }
+}
+
+/// handle to a module
+pub struct Handle<M: Module> {
+    tx: mpsc::Sender<Request<M>>,
+    events: broadcast::Sender<M::Event>,
+}
+
+impl<M: Module> Clone for Handle<M> {
+    fn clone(&self) -> Self {
+        Self { tx: self.tx.clone(), events: self.events.clone() }
+    }
+}
+
+impl<M: Module> Handle<M> {
+    pub async fn request(&self, payload: M::Request) -> Result<M::Response, ModuleError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(Request { payload, reply })
+            .await
+            .map_err(|_| ModuleError::Other("module stopped".into()))?;
+        rx.await.map_err(|_| ModuleError::Other("module stopped".into()))?
+    }
+
+    pub fn subscribe(&self) -> broadcast::Receiver<M::Event> {
+        self.events.subscribe()
+    }
+}
+
+// create a module
+pub fn spawn<M: Module>() -> Handle<M> {
+    let (tx, rx) = mpsc::channel(REQUEST_CAP);
+    let (events, _) = broadcast::channel(EVENT_CAP);
+    let ctx = Context { rx, events: events.clone() };
+    tokio::spawn(M::new().run(ctx));
+    Handle { tx, events }
+}
+
+/// dispatch to module and receive
+pub async fn dispatch_to<M: Module>(handle: &Handle<M>, frame: Frame) -> Frame {
+    let payload: M::Request = match postcard::from_bytes(&frame.payload) {
+        Ok(p) => p,
+        Err(e) => return error_frame(&frame, e.to_string()),
+    };
+    match handle.request(payload).await {
+        Ok(resp) => match postcard::to_allocvec(&resp) {
+            Ok(payload) => Frame {
+                kind: FrameKind::Response,
+                route: frame.route,
+                request_id: frame.request_id,
+                payload,
+            },
+            Err(e) => error_frame(&frame, e.to_string()),
+        },
+        Err(e) => error_frame(&frame, e.to_string()),
+    }
+}
+
+/// ```ignore
+/// register_modules! {
+///     pub enum ModuleId;
+///     pub struct Modules;
+///
+///     Settings => settings::SettingsModule,
+///     #[cfg(windows)] Genshin => genshin::GenshinModule,
+/// }
+/// ```
+#[macro_export]
+macro_rules! register_modules {
+    (
+        $(#[$emeta:meta])* $evis:vis enum $route:ident;
+        $(#[$smeta:meta])* $svis:vis struct $modules:ident;
+        $(
+            $(#[cfg($cfg:meta)])? $variant:ident => $ty:ty
+        ),* $(,)?
+    ) => {
+        $(#[$emeta])*
+        #[derive(
+            ::core::clone::Clone, ::core::marker::Copy, ::core::fmt::Debug,
+            ::core::cmp::PartialEq, ::core::cmp::Eq, ::core::hash::Hash,
+            ::serde::Serialize, ::serde::Deserialize,
+        )]
+        $evis enum $route {
+            $( $variant, )*
+        }
+
+        $(#[$smeta])*
+        #[allow(non_snake_case)]
+        $svis struct $modules {
+            $( #[cfg(all($($cfg,)?))] pub $variant: $crate::modules::Handle<$ty>, )*
+        }
+
+        impl $modules {
+            pub fn spawn() -> Self {
+                Self {
+                    $( #[cfg(all($($cfg,)?))] $variant: $crate::modules::spawn::<$ty>(), )*
+                }
+            }
+        }
+
+        impl $crate::transport::conn_manager::Dispatcher for $modules {
+            #[allow(unused_variables)]
+            async fn dispatch(
+                &self,
+                _peer: $crate::transport::conn_manager::PeerId,
+                frame: $crate::transport::frame::Frame,
+            ) -> ::core::option::Option<$crate::transport::frame::Frame> {
+                match frame.route {
+                    $(
+                        #[cfg(all($($cfg,)?))]
+                        $route::$variant => ::core::option::Option::Some(
+                            $crate::modules::dispatch_to(&self.$variant, frame).await
+                        ),
+                        #[cfg(not(all($($cfg,)?)))]
+                        $route::$variant => ::core::option::Option::Some(
+                            $crate::transport::frame::error_frame(
+                                &frame,
+                                ::std::string::String::from(
+                                    "module unsupported on this platform",
+                                ),
+                            )
+                        ),
+                    )*
+                }
+            }
+        }
+    };
 }

@@ -6,7 +6,6 @@ pub mod core_stream;
 pub mod codec;
 pub mod frame;
 pub mod conn_manager;
-pub mod dispatcher;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
@@ -20,8 +19,11 @@ mod tests {
     use super::noise_stream::NoiseStream;
     use super::test_utils::{chan_pair, noise_pair};
     use super::xchacha_stream::XChaChaStream;
+    use crate::modules::ModuleId;
     use crate::traits::{FramedSender, FramedStream, SplittableStream, FramedReceiver};
     use secrecy::SecretBox;
+
+    const ROUTE: ModuleId = ModuleId::Sysinfo;
 
     #[tokio::test]
     async fn full_stack_encrypts_and_roundtrips() {
@@ -85,10 +87,10 @@ mod tests {
 
         let client = Peer::connect(b, Arc::new(EchoDispatcher));
 
-        let resp = client.request(7, b"ping".to_vec()).await.unwrap();
+        let resp = client.request(ROUTE, b"ping".to_vec()).await.unwrap();
         assert_eq!(resp, b"ping");
 
-        let resp2 = client.request(7, b"pong".to_vec()).await.unwrap();
+        let resp2 = client.request(ROUTE, b"pong".to_vec()).await.unwrap();
         assert_eq!(resp2, b"pong");
 
         assert_eq!(pool.peer_count(), 1);
@@ -105,11 +107,11 @@ mod tests {
 
         let c1 = Peer::connect(b1, Arc::new(EchoDispatcher));
         let c2 = Peer::connect(b2, Arc::new(EchoDispatcher));
-        let mut sub1 = c1.subscribe(99);
-        let mut sub2 = c2.subscribe(99);
+        let mut sub1 = c1.subscribe(ROUTE);
+        let mut sub2 = c2.subscribe(ROUTE);
 
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        pool.broadcast_event(99, b"hello all".to_vec());
+        pool.broadcast_event(ROUTE, b"hello all".to_vec());
 
         let e1 = sub1.recv().await.unwrap();
         let e2 = sub2.recv().await.unwrap();
@@ -128,11 +130,11 @@ mod tests {
 
         let c1 = Peer::connect(b1, Arc::new(EchoDispatcher));
         let c2 = Peer::connect(b2, Arc::new(EchoDispatcher));
-        let mut sub1 = c1.subscribe(5);
-        let mut sub2 = c2.subscribe(5);
+        let mut sub1 = c1.subscribe(ROUTE);
+        let mut sub2 = c2.subscribe(ROUTE);
 
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        pool.get(2).unwrap().send_event(5, b"hi 2".to_vec()).await.unwrap();
+        pool.get(2).unwrap().send_event(ROUTE, b"hi 2".to_vec()).await.unwrap();
 
         let e2 = sub2.recv().await.unwrap();
         assert_eq!(e2, b"hi 2");
