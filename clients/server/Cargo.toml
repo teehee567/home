@@ -5,8 +5,7 @@ edition.workspace = true
 
 [dependencies]
 noob = { workspace = true }
-axum = { workspace = true }
 tokio = { workspace = true }
-tonic = { workspace = true }
-tower = { workspace = true }
 thiserror = { workspace = true }
+quinn = { workspace = true }
+anyhow = { workspace = true }

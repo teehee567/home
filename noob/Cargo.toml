@@ -31,15 +31,16 @@ trait-variant = { workspace = true }
 quinn = { workspace = true }
 tokio = { workspace = true }
 redb = { workspace = true }
-axum = { workspace = true }
-tonic = { workspace = true }
-tower = { workspace = true }
 
 sysinfo = { workspace = true }
 dirs-next = { workspace = true }
 
+[build-dependencies]
+rcgen = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
 ferrisetw = { workspace = true }
+
 
 [dev-dependencies]
 hex = "0.4"

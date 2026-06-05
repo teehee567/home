@@ -8,6 +8,8 @@ slint = { workspace = true, features = ["renderer-skia"]}
 noob = { workspace = true }
 tokio = { workspace = true }
 rfd = { workspace = true }
+quinn = { workspace = true }
+anyhow = { workspace = true }
 
 [build-dependencies]
 slint-build = { workspace = true }

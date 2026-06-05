@@ -9,6 +9,7 @@ use tokio::runtime::Runtime;
 mod app_watcher;
 #[cfg(windows)]
 mod genshin;
+mod net;
 
 slint::include_modules!();
 

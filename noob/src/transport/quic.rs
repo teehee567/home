@@ -1,7 +1,14 @@
+use std::{net::SocketAddr, sync::Arc};
+
 use anyhow::Result;
-use quinn::{RecvStream, SendStream};
+use quinn::{
+    ClientConfig, Connection, Endpoint, RecvStream, SendStream, ServerConfig,
+    crypto::rustls::{QuicClientConfig, QuicServerConfig},
+    rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer},
+};
 
 use super::duplex::Duplex;
+use crate::core::crypto::tls;
 use crate::traits::{FramedReceiver, FramedSender};
 
 pub type QuicStream = Duplex<QuicReader, QuicWriter>;
@@ -41,4 +48,28 @@ impl FramedSender for QuicWriter {
         self.send.write_all(data).await?;
         Ok(())
     }
+}
+
+pub fn server_endpoint(
+    addr: SocketAddr,
+    server_cert: CertificateDer<'static>,
+    server_key: PrivatePkcs8KeyDer<'static>,
+    pinned_client_cert: CertificateDer<'static>,
+) -> Result<Endpoint> {
+    let crypto = tls::server_config(server_cert, server_key, pinned_client_cert)?;
+    let server_config = ServerConfig::with_crypto(Arc::new(QuicServerConfig::try_from(crypto)?));
+    Ok(Endpoint::server(server_config, addr)?)
+}
+
+pub fn client_endpoint(
+    bind_addr: SocketAddr,
+    client_cert: CertificateDer<'static>,
+    client_key: PrivatePkcs8KeyDer<'static>,
+    pinned_server_cert: CertificateDer<'static>,
+) -> Result<Endpoint> {
+    let crypto = tls::client_config(client_cert, client_key, pinned_server_cert)?;
+    let client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(crypto)?));
+    let mut endpoint = Endpoint::client(bind_addr)?;
+    endpoint.set_default_client_config(client_config);
+    Ok(endpoint)
 }

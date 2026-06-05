@@ -5,3 +5,4 @@ pub mod keys;
 pub mod ml_kem;
 pub mod noise;
 pub mod opaque;
+pub mod tls;
