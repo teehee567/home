@@ -3,6 +3,7 @@ pub mod genshin;
 pub mod app_watcher;
 pub mod sys_info;
 mod registry;
+mod net;
 
 pub use registry::{ModuleId, Modules};
 
@@ -155,6 +156,13 @@ macro_rules! register_modules {
         $svis struct $modules {
             $( #[cfg(all($($cfg,)?))] pub $variant: $crate::modules::Handle<$ty>, )*
         }
+
+        $(
+            #[cfg(all($($cfg,)?))]
+            impl $ty {
+                pub const ID: $route = $route::$variant;
+            }
+        )*
 
         impl $modules {
             pub fn spawn() -> Self {
