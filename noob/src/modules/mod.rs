@@ -3,7 +3,6 @@ pub mod genshin;
 pub mod app_watcher;
 pub mod sys_info;
 mod registry;
-mod net;
 
 pub use registry::{ModuleId, Modules};
 

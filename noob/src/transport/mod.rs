@@ -3,7 +3,6 @@ pub mod quic;
 pub mod noise_stream;
 pub mod xchacha_stream;
 pub mod core_stream;
-pub mod codec;
 pub mod frame;
 pub mod conn_manager;
 

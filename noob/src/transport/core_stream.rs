@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use quinn::{RecvStream, SendStream};
 use secrecy::SecretBox;
 use serde::{Serialize, de::DeserializeOwned};
 use snow::StatelessTransportState;
@@ -16,7 +15,7 @@ pub type CoreStream = Duplex<CoreReader, CoreWriter>;
 
 impl Duplex<CoreReader, CoreWriter> {
     pub fn new(
-        connection: (SendStream, RecvStream),
+        connection: (quinn::SendStream, quinn::RecvStream),
         noise_transport: Arc<StatelessTransportState>,
         stream_id: u16,
         module_transport_key: SecretBox<[u8; 32]>,
