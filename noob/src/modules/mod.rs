@@ -32,11 +32,15 @@ pub trait Module: Send + Sized + 'static {
 
     type Request: Serialize + DeserializeOwned + Send + 'static;
     type Response: Serialize + DeserializeOwned + Send + 'static;
-    type Event: Clone + Send + 'static;
+    type Event: Clone + Send + Serialize + DeserializeOwned + 'static;
 
     fn new() -> Self;
 
     fn run(self, ctx: Context<Self>) -> impl Future<Output = ()> + Send;
+}
+
+pub trait Routed {
+    const ID: ModuleId;
 }
 
 pub struct Request<M: Module> {
@@ -158,8 +162,8 @@ macro_rules! register_modules {
 
         $(
             #[cfg(all($($cfg,)?))]
-            impl $ty {
-                pub const ID: $route = $route::$variant;
+            impl $crate::modules::Routed for $ty {
+                const ID: $route = $route::$variant;
             }
         )*
 
@@ -168,6 +172,36 @@ macro_rules! register_modules {
                 Self {
                     $( #[cfg(all($($cfg,)?))] $variant: $crate::modules::spawn::<$ty>(), )*
                 }
+            }
+
+            pub fn broadcast_events(
+                &self,
+                pool: ::std::sync::Arc<$crate::transport::conn_manager::PeerPool<Self>>,
+            ) {
+                $(
+                    #[cfg(all($($cfg,)?))]
+                    {
+                        let mut sub = self.$variant.subscribe();
+                        let pool = pool.clone();
+                        ::tokio::spawn(async move {
+                            loop {
+                                match sub.recv().await {
+                                    ::core::result::Result::Ok(ev) => {
+                                        if let ::core::result::Result::Ok(bytes) =
+                                            ::postcard::to_allocvec(&ev)
+                                        {
+                                            pool.broadcast_event($route::$variant, bytes);
+                                        }
+                                    }
+                                    ::core::result::Result::Err(
+                                        ::tokio::sync::broadcast::error::RecvError::Lagged(_),
+                                    ) => continue,
+                                    ::core::result::Result::Err(_) => break,
+                                }
+                            }
+                        });
+                    }
+                )*
             }
         }
 

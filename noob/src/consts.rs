@@ -1,3 +1,1 @@
-
-
-const SERVER_IP: &str = "lsdflsdjkf";
+//! Shared constants.

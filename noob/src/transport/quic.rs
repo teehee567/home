@@ -30,6 +30,19 @@ pub struct QuicWriter {
     send: SendStream,
 }
 
+impl QuicReader {
+    /// Recover the underlying quinn stream (to reuse a post-handshake stream as data).
+    pub fn into_recv(self) -> RecvStream {
+        self.recv
+    }
+}
+
+impl QuicWriter {
+    pub fn into_send(self) -> SendStream {
+        self.send
+    }
+}
+
 impl FramedReceiver for QuicReader {
     async fn receive(&mut self) -> Result<Vec<u8>> {
         let mut len_buf = [0u8; 4];
