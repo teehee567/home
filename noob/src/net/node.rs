@@ -38,7 +38,7 @@ impl Node {
         &self.modules
     }
 
-    /// Accept inbound connections forever, attaching each as a peer (responder role).
+    // accept incomming connections
     pub async fn listen(self: Arc<Self>) {
         while let Some(incoming) = self.endpoint.accept().await {
             let node = self.clone();
@@ -55,7 +55,7 @@ impl Node {
         let (transport, key) = todo!();
 
         let (reader, writer) = hs.split();
-        let core = CoreStream::new((writer.into_send(), reader.into_recv()), transport, STREAM_ID, key);
+        let core = CoreStream::new((writer.into(), reader.into()), transport, STREAM_ID, key);
         let id = self.next_peer.fetch_add(1, Ordering::Relaxed);
         self.pool.attach(id, core);
 
@@ -71,7 +71,7 @@ impl Node {
         let (transport, key) = todo!();
 
         let (reader, writer) = hs.split();
-        let core = CoreStream::new((writer.into_send(), reader.into_recv()), transport, STREAM_ID, key);
+        let core = CoreStream::new((writer.into(), reader.into()), transport, STREAM_ID, key);
         let id = self.next_peer.fetch_add(1, Ordering::Relaxed);
         let peer = self.pool.attach(id, core);
 
