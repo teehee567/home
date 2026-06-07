@@ -6,7 +6,7 @@ use quinn::rustls::{
     SignatureScheme,
     client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
     crypto::{
-        CryptoProvider, WebPkiSupportedAlgorithms, verify_tls12_signature, verify_tls13_signature,
+        CryptoProvider, WebPkiSupportedAlgorithms, ring, verify_tls12_signature, verify_tls13_signature
     },
     pki_types::{CertificateDer, PrivatePkcs8KeyDer, ServerName, UnixTime},
     server::danger::{ClientCertVerified, ClientCertVerifier},
@@ -49,12 +49,22 @@ pub struct PinnedCertVerifier {
 
 impl PinnedCertVerifier {
     pub fn new(pinned: CertificateDer<'static>) -> Self {
-        let provider = CryptoProvider::get_default().unwrap();
+        let provider = crypto_provider();
         Self {
             pinned,
             supported_schemes: provider.signature_verification_algorithms,
         }
     }
+}
+
+fn crypto_provider() -> Arc<CryptoProvider> {
+    if let Some(provider) = CryptoProvider::get_default() {
+        return provider.clone();
+    }
+    let _ = ring::default_provider().install_default();
+    CryptoProvider::get_default()
+        .cloned()
+        .unwrap_or_else(|| Arc::new(ring::default_provider()))
 }
 
 impl ServerCertVerifier for PinnedCertVerifier {
