@@ -1,7 +1,3 @@
-//! A symmetric node: hosts `Modules`, and both accepts and dials peers over `CoreStream`.
-//!
-//! "Server" and "client" are roles — `listen()` vs `dial()`. Both end in `pool.attach`.
-
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,8 +5,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::Result;
 use quinn::{Endpoint, Incoming};
 
+use crate::core::auth::server_identity::ServerIdentity;
 use crate::modules::Modules;
-use crate::net::STREAM_ID;
+use crate::net::{STREAM_ID, auth};
 use crate::traits::SplittableStream;
 use crate::transport::conn_manager::{Peer, PeerId, PeerPool};
 use crate::transport::core_stream::CoreStream;
@@ -39,20 +36,21 @@ impl Node {
     }
 
     // accept incomming connections
-    pub async fn listen(self: Arc<Self>) {
+    pub async fn listen(self: Arc<Self>, identity: Arc<ServerIdentity>) {
         while let Some(incoming) = self.endpoint.accept().await {
             let node = self.clone();
+            let identity = identity.clone();
             tokio::spawn(async move {
-                let _ = node.accept_one(incoming).await;
+                let _ = node.accept_one(incoming, identity).await;
             });
         }
     }
 
-    async fn accept_one(&self, incoming: Incoming) -> Result<PeerId> {
+    async fn accept_one(&self, incoming: Incoming, identity: Arc<ServerIdentity>) -> Result<PeerId> {
         let conn = incoming.accept()?.await?;
         let (s, r) = conn.accept_bi().await?;
         let mut hs = QuicStream::new((s, r));
-        let (transport, key) = todo!();
+        let (transport, key) = auth::server(&mut hs, &identity).await?;
 
         let (reader, writer) = hs.split();
         let core = CoreStream::new((writer.into(), reader.into()), transport, STREAM_ID, key);
@@ -63,12 +61,11 @@ impl Node {
         Ok(id)
     }
 
-    /// Dial a remote node (initiator role); returns the attached peer.
-    pub async fn dial(&self, addr: SocketAddr, server_name: &str) -> Result<Arc<Peer>> {
+    pub async fn connect(&self, addr: SocketAddr, server_name: &str, password: &[u8]) -> Result<Arc<Peer>> {
         let conn = self.endpoint.connect(addr, server_name)?.await?;
         let (s, r) = conn.open_bi().await?;
         let mut hs = QuicStream::new((s, r));
-        let (transport, key) = todo!();
+        let (transport, key) = auth::client(&mut hs, password).await?;
 
         let (reader, writer) = hs.split();
         let core = CoreStream::new((writer.into(), reader.into()), transport, STREAM_ID, key);
@@ -77,7 +74,5 @@ impl Node {
 
         tokio::spawn(async move { let _ = conn.closed().await; });
         Ok(peer)
-
     }
-
 }
