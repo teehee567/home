@@ -30,15 +30,14 @@ pub struct QuicWriter {
     send: SendStream,
 }
 
-impl QuicReader {
-    /// Recover the underlying quinn stream (to reuse a post-handshake stream as data).
-    pub fn into_recv(self) -> RecvStream {
+impl Into<RecvStream> for QuicReader {
+    fn into(self) -> RecvStream {
         self.recv
     }
 }
 
-impl QuicWriter {
-    pub fn into_send(self) -> SendStream {
+impl Into<SendStream> for QuicWriter {
+    fn into(self) -> SendStream {
         self.send
     }
 }
