@@ -25,6 +25,7 @@ fn main() {
     #[cfg(windows)]
     genshin::setup(&app);
     app_watcher::setup(&app);
+    net::setup(&app);
 
     app.window().on_close_requested(move || {
         #[cfg(windows)]

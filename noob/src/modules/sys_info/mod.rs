@@ -20,6 +20,7 @@ pub enum SysinfoRequest {
 pub struct SysinfoModule {
     sys: System,
     pid: Pid,
+    num_cpus: f32,
     current: ProcStats,
 }
 
@@ -31,9 +32,15 @@ impl Module for SysinfoModule {
     type Event = ProcStats;
 
     fn new() -> Self {
+        let num_cpus = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .max(1) as f32;
+
         Self {
             sys: System::new(),
             pid: Pid::from_u32(process::id()),
+            num_cpus,
             current: ProcStats { cpu: 0.0, memory: 0 },
         }
     }
@@ -46,7 +53,7 @@ impl Module for SysinfoModule {
                     Some(req) => match req.payload {
                         SysinfoRequest::GetStats => req.reply(Ok(self.current)),
                     },
-                    None => break, // every handle dropped → shut down
+                    None => break,
                 },
                 _ = tick.tick() => {
                     let next = self.sample();
@@ -68,7 +75,10 @@ impl SysinfoModule {
             ProcessRefreshKind::nothing().with_cpu().with_memory(),
         );
         match self.sys.process(self.pid) {
-            Some(p) => ProcStats { cpu: p.cpu_usage(), memory: p.memory() },
+            Some(p) => ProcStats {
+                cpu: (p.cpu_usage() / self.num_cpus * 100.0).round() / 100.0,
+                memory: p.memory(),
+            },
             None => self.current,
         }
     }

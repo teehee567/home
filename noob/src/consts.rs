@@ -1,1 +1,1 @@
-//! Shared constants.
+pub const ACCOUNT_ID: &str = "owner";

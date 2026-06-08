@@ -69,6 +69,10 @@ export component App inherits Window {
     in property <string> status-text: "Genshin Impact not running";
     in property <bool> running: false;
 
+    in property <string> server-value: "---";
+    in property <string> server-status: "Not connected";
+    in property <bool> server-connected: false;
+
     in property <[WatchedAppData]> watcher-apps: [];
     in-out property <int> watcher-selected: -1;
     callback watcher-add-app();
@@ -111,6 +115,9 @@ export component App inherits Window {
                 fps-text: root.fps-text;
                 status-text: root.status-text;
                 running: root.running;
+                server-value: root.server-value;
+                server-status: root.server-status;
+                server-connected: root.server-connected;
             }
             if current-tab == 1 : GenshinPage {
                 fps-text: root.fps-text;

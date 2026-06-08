@@ -39,6 +39,9 @@ export component Dashboard inherits Rectangle {
     in property <string> fps-text;
     in property <string> status-text;
     in property <bool> running;
+    in property <string> server-value: "---";
+    in property <string> server-status: "Not connected";
+    in property <bool> server-connected: false;
 
     VerticalLayout {
         padding: 20px;
@@ -74,10 +77,11 @@ export component Dashboard inherits Rectangle {
             Rectangle { width: 1px; background: #161b22; }
 
             StatusBlock {
-                title: "FINANCE";
+                title: "SERVER";
                 accent: #58a6ff;
-                value: "---";
-                status: "Not configured";
+                value: root.server-value;
+                status: root.server-status;
+                active: root.server-connected;
             }
         }
 
