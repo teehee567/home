@@ -15,14 +15,14 @@ use crate::core::crypto::{
 };
 
 use super::types::*;
-use super::server_identity::ServerIdentity;
+use super::node_identity::NodeIdentity;
 
 const NOISE_MSG_BUF: usize = 65535;
 
 /// sends server noise static ublic and ML-KEM-768 public inside opaque registration
 /// returns encrypted at rest key
 pub async fn handle_registration(
-    server_identity: &ServerIdentity,
+    server_identity: &NodeIdentity,
     opaque_server: &mut OpaqueServer,
     username: &str,
     tls_cert_fingerprint: &[u8; 32],
@@ -70,7 +70,7 @@ pub async fn handle_registration(
 /// AFter 4 both sides have final_key which is
 /// `HKDF(ml_kem_ss || opaque_session_key, noise_handshake_hash, "noob:transport:final:1"`
 pub async fn handle_login(
-    server_identity: &ServerIdentity,
+    server_identity: &NodeIdentity,
     opaque_server: &OpaqueServer,
     username: &str,
     encrypted_at_rest_key_blob: &[u8],

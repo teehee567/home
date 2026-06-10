@@ -9,7 +9,8 @@ use tokio::runtime::Runtime;
 mod app_watcher;
 #[cfg(windows)]
 mod genshin;
-mod net;
+mod node;
+mod sysinfo;
 
 slint::include_modules!();
 
@@ -21,11 +22,12 @@ fn main() {
     let _guard = rt.enter();
 
     let app = App::new().unwrap();
+    let node = node::DesktopNode::new().expect("build desktop node");
 
     #[cfg(windows)]
-    genshin::setup(&app);
-    app_watcher::setup(&app);
-    net::setup(&app);
+    genshin::setup(&app, node.clone());
+    app_watcher::setup(&app, node.clone());
+    sysinfo::setup(&app, node);
 
     app.window().on_close_requested(move || {
         #[cfg(windows)]

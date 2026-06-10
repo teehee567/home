@@ -1,7 +1,7 @@
 pub mod types;
 pub mod client;
 pub mod server;
-pub mod server_identity;
+pub mod node_identity;
 
 pub use types::*;
 
@@ -12,7 +12,7 @@ mod tests {
 	use tokio::sync::mpsc;
 	use crate::traits::FramedStream;
 
-	use super::{client, server, server_identity::ServerIdentity};
+	use super::{client, server, node_identity::NodeIdentity};
 	use crate::core::crypto::opaque::OpaqueServer;
 
 	struct ChannelFramed {
@@ -46,7 +46,7 @@ mod tests {
 		let username = "alice";
 		let fingerprint = rand::random::<[u8; 32]>();
 
-		let identity = ServerIdentity::generate()?;
+		let identity = NodeIdentity::generate()?;
 		let mut opaque = OpaqueServer::new();
 
 		// register

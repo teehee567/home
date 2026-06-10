@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use anyhow::Result;
+use noob::core::auth::node_identity::NodeIdentity;
 use noob::modules::Modules;
 use noob::net::Node;
 use noob::transport::quic;
@@ -21,8 +22,9 @@ async fn main() -> Result<()> {
         CertificateDer::from(PINNED_CLIENT_CERT),
     )?;
 
-    let modules = Arc::new(Modules::spawn());
-    let node = Node::new(endpoint, modules);
+    let modules = Arc::new(Modules::spawn_server());
+    let identity = Arc::new(NodeIdentity::generate()?);
+    let node = Node::new(endpoint, modules, identity);
 
     println!("home server listening on {addr}");
     node.listen().await;

@@ -1,15 +1,17 @@
-use noob::modules::{self, genshin::GenshinModule};
+use std::sync::Arc;
+
 use slint::ComponentHandle;
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::App;
+use crate::node::DesktopNode;
 
-pub fn setup(app: &App) {
+pub fn setup(app: &App, node: Arc<DesktopNode>) {
     let app_weak = app.as_weak();
+    let handle = node.modules().Genshin.clone().expect("genshin hosted on desktop");
     tokio::spawn(async move {
         // Keep `handle` alive for the task's lifetime: dropping the last handle
         // shuts the module down.
-        let handle = modules::spawn::<GenshinModule>();
         let mut events = handle.subscribe();
         loop {
             let state = match events.recv().await {

@@ -131,13 +131,58 @@ pub async fn dispatch_to<M: Module>(handle: &Handle<M>, frame: Frame) -> Frame {
 ///     pub enum ModuleId;
 ///     pub struct Modules;
 ///
-///     Settings => settings::SettingsModule,
-///     #[cfg(windows)] Genshin => genshin::GenshinModule,
+///     device {
+///         Settings => settings::SettingsModule,
+///     }
+///     desktop {
+///         #[cfg(windows)] Genshin => genshin::GenshinModule,
+///     }
+///     authority {
+///         FileStore => file_store::FileStoreModule,
+///     }
 /// }
 /// ```
 #[macro_export]
 macro_rules! register_modules {
     (
+        $(#[$emeta:meta])* $evis:vis enum $route:ident;
+        $(#[$smeta:meta])* $svis:vis struct $modules:ident;
+        device { $( $(#[cfg($dcfg:meta)])? $dvar:ident => $dty:ty ),* $(,)? }
+        desktop { $( $(#[cfg($kcfg:meta)])? $kvar:ident => $kty:ty ),* $(,)? }
+        authority { $( $(#[cfg($acfg:meta)])? $avar:ident => $aty:ty ),* $(,)? }
+    ) => {
+        $crate::register_modules! {
+            @flat
+            $(#[$emeta])* $evis enum $route;
+            $(#[$smeta])* $svis struct $modules;
+            $( $(#[cfg($dcfg)])? $dvar => $dty, )*
+            $( $(#[cfg($kcfg)])? $kvar => $kty, )*
+            $( $(#[cfg($acfg)])? $avar => $aty, )*
+        }
+
+        impl $route {
+            /// Per-device routes — hosted by every node.
+            $evis const DEVICE: &[$route] = &[ $( $route::$dvar, )* ];
+            /// Desktop routes — hosted only by interactive user machines.
+            $evis const DESKTOP: &[$route] = &[ $( $route::$kvar, )* ];
+            /// Authority routes — hosted only by the always-on node.
+            $evis const AUTHORITY: &[$route] = &[ $( $route::$avar, )* ];
+        }
+
+        impl $modules {
+            /// Spawn what an interactive user machine hosts (device + desktop).
+            $svis fn spawn_desktop() -> Self {
+                Self::spawn_groups(&[$route::DEVICE, $route::DESKTOP])
+            }
+
+            /// Spawn what the always-on node hosts (device + authority).
+            $svis fn spawn_server() -> Self {
+                Self::spawn_groups(&[$route::DEVICE, $route::AUTHORITY])
+            }
+        }
+    };
+    (
+        @flat
         $(#[$emeta:meta])* $evis:vis enum $route:ident;
         $(#[$smeta:meta])* $svis:vis struct $modules:ident;
         $(
@@ -157,7 +202,7 @@ macro_rules! register_modules {
         $(#[$smeta])*
         #[allow(non_snake_case)]
         $svis struct $modules {
-            $( #[cfg(all($($cfg,)?))] pub $variant: $crate::modules::Handle<$ty>, )*
+            $( #[cfg(all($($cfg,)?))] pub $variant: ::core::option::Option<$crate::modules::Handle<$ty>>, )*
         }
 
         $(
@@ -168,9 +213,19 @@ macro_rules! register_modules {
         )*
 
         impl $modules {
-            pub fn spawn() -> Self {
+            /// Spawn only the modules this node hosts. Routes not in any of
+            /// the `hosted` groups (or unavailable on this platform) dispatch
+            /// to an error frame.
+            pub fn spawn_groups(hosted: &[&[$route]]) -> Self {
                 Self {
-                    $( #[cfg(all($($cfg,)?))] $variant: $crate::modules::spawn::<$ty>(), )*
+                    $(
+                        #[cfg(all($($cfg,)?))]
+                        $variant: if hosted.iter().any(|g| g.contains(&$route::$variant)) {
+                            ::core::option::Option::Some($crate::modules::spawn::<$ty>())
+                        } else {
+                            ::core::option::Option::None
+                        },
+                    )*
                 }
             }
 
@@ -180,8 +235,8 @@ macro_rules! register_modules {
             ) {
                 $(
                     #[cfg(all($($cfg,)?))]
-                    {
-                        let mut sub = self.$variant.subscribe();
+                    if let ::core::option::Option::Some(handle) = &self.$variant {
+                        let mut sub = handle.subscribe();
                         let pool = pool.clone();
                         ::tokio::spawn(async move {
                             loop {
@@ -216,7 +271,19 @@ macro_rules! register_modules {
                     $(
                         #[cfg(all($($cfg,)?))]
                         $route::$variant => ::core::option::Option::Some(
-                            $crate::modules::dispatch_to(&self.$variant, frame).await
+                            match &self.$variant {
+                                ::core::option::Option::Some(handle) => {
+                                    $crate::modules::dispatch_to(handle, frame).await
+                                }
+                                ::core::option::Option::None => {
+                                    $crate::transport::frame::error_frame(
+                                        &frame,
+                                        ::std::string::String::from(
+                                            "module not hosted on this node",
+                                        ),
+                                    )
+                                }
+                            }
                         ),
                         #[cfg(not(all($($cfg,)?)))]
                         $route::$variant => ::core::option::Option::Some(

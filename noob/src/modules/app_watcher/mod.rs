@@ -1,13 +1,16 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
-use tokio::sync::mpsc::{self, UnboundedSender};
-use tokio::{fs, time};
+
+use serde::{Deserialize, Serialize};
+use tokio::time;
+
+use crate::modules::{Context, Module, ModuleError};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppState {
     pub exe_path: String,
     pub display_name: String,
@@ -15,43 +18,75 @@ pub struct AppState {
     pub error: String,
 }
 
-pub enum WatcherCommand {
+#[derive(Serialize, Deserialize)]
+pub enum AppWatcherRequest {
     Add(PathBuf),
     Remove(usize),
+    GetState,
 }
 
-pub fn start(
-    on_state: impl Fn(Vec<AppState>) + Send + 'static,
-) -> UnboundedSender<WatcherCommand> {
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    tokio::spawn(async move {
-        let store = store_path();
-        let mut paths: Vec<PathBuf> = fs::read_to_string(&store)
-            .await
-            .map(|s| s.lines().filter(|l| !l.trim().is_empty()).map(PathBuf::from).collect())
-            .unwrap_or_default();
+#[derive(Serialize, Deserialize)]
+pub enum AppWatcherResponse {
+    Ack,
+    State(Vec<AppState>),
+}
 
-        for p in &paths {
-            launch_if_offline(p);
-        }
+// no persistence yet — the watch list starts empty each run (revisit with the
+// storage backend).
+pub struct AppWatcherModule {
+    paths: Vec<PathBuf>,
+}
 
+impl Module for AppWatcherModule {
+    const NAME: &str = "app_watcher";
+
+    type Request = AppWatcherRequest;
+    type Response = AppWatcherResponse;
+    type Event = Vec<AppState>;
+
+    fn new() -> Self {
+        Self { paths: Vec::new() }
+    }
+
+    async fn run(mut self, mut ctx: Context<Self>) {
         let mut tick = time::interval(Duration::from_secs(60));
         loop {
-            on_state(paths.iter().map(state_of).collect());
             tokio::select! {
-                _ = tick.tick() => {}
-                Some(cmd) = rx.recv() => {
-                    match cmd {
-                        WatcherCommand::Add(p) => { launch_if_offline(&p); paths.push(p); }
-                        WatcherCommand::Remove(i) if i < paths.len() => { paths.remove(i); }
-                        _ => continue,
+                msg = ctx.recv() => match msg {
+                    Some(req) => {
+                        let resp = match req.payload {
+                            AppWatcherRequest::Add(ref path) => {
+                                launch_if_offline(path);
+                                self.paths.push(path.clone());
+                                ctx.publish(self.snapshot());
+                                Ok(AppWatcherResponse::Ack)
+                            }
+                            AppWatcherRequest::Remove(i) if i < self.paths.len() => {
+                                self.paths.remove(i);
+                                ctx.publish(self.snapshot());
+                                Ok(AppWatcherResponse::Ack)
+                            }
+                            AppWatcherRequest::Remove(_) => {
+                                Err(ModuleError::Other("watch index out of range".into()))
+                            }
+                            AppWatcherRequest::GetState => {
+                                Ok(AppWatcherResponse::State(self.snapshot()))
+                            }
+                        };
+                        req.reply(resp);
                     }
-                    save(&store, &paths).await;
-                }
+                    None => break, // every handle dropped → shut down
+                },
+                _ = tick.tick() => ctx.publish(self.snapshot()),
             }
         }
-    });
-    tx
+    }
+}
+
+impl AppWatcherModule {
+    fn snapshot(&self) -> Vec<AppState> {
+        self.paths.iter().map(state_of).collect()
+    }
 }
 
 fn state_of(path: &PathBuf) -> AppState {
@@ -85,19 +120,4 @@ fn launch_if_offline(path: &Path) {
     #[cfg(windows)]
     { cmd.creation_flags(0x00000008); }
     let _ = cmd.spawn();
-}
-
-fn store_path() -> PathBuf {
-    let mut p = dirs_next::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
-    p.push("noob");
-    p.push("watched_apps.txt");
-    p
-}
-
-async fn save(path: &Path, paths: &[PathBuf]) {
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent).await;
-    }
-    let data = paths.iter().map(|p| p.to_string_lossy().into_owned()).collect::<Vec<_>>().join("\n");
-    let _ = fs::write(path, data).await;
 }

@@ -1,0 +1,62 @@
+use std::env;
+use std::net::SocketAddr;
+use std::sync::Arc;
+
+use anyhow::Result;
+use noob::core::auth::node_identity::NodeIdentity;
+use noob::modules::Modules;
+use noob::net::Node;
+use noob::storage::secrets::{self, Secrets};
+use noob::transport::conn_manager::Peer;
+use noob::transport::quic;
+use quinn::rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
+use tokio::sync::OnceCell;
+
+const CLIENT_CERT: &[u8] = include_bytes!("../../../out/certs/client-cert.der");
+const CLIENT_KEY: &[u8] = include_bytes!("../../../out/certs/client-key.der");
+const PINNED_SERVER_CERT: &[u8] = include_bytes!("../../../out/certs/server-cert.der");
+
+const DEFAULT_ADDR: &str = "127.0.0.1:4433";
+
+pub struct DesktopNode {
+    node: Arc<Node>,
+    server_peer: OnceCell<Arc<Peer>>,
+}
+
+impl DesktopNode {
+    pub fn new() -> Result<Arc<Self>> {
+        let endpoint = quic::client_endpoint(
+            "0.0.0.0:0".parse()?,
+            CertificateDer::from(CLIENT_CERT),
+            PrivatePkcs8KeyDer::from(CLIENT_KEY),
+            CertificateDer::from(PINNED_SERVER_CERT),
+        )?;
+        let modules = Arc::new(Modules::spawn_desktop());
+        let identity = Arc::new(NodeIdentity::generate()?);
+        let node = Node::new(endpoint, modules, identity);
+        Ok(Arc::new(Self { node, server_peer: OnceCell::new() }))
+    }
+
+    pub async fn connect_server(&self) -> Result<Arc<Peer>> {
+        self.server_peer
+            .get_or_try_init(|| async {
+                let addr: SocketAddr = env::var("NOOB_SERVER")
+                    .unwrap_or_else(|_| DEFAULT_ADDR.to_string())
+                    .parse()?;
+                let password = Secrets::load(secrets::default_path()).password();
+                self.node.connect(addr, "localhost", &password).await
+            })
+            .await
+            .cloned()
+    }
+
+    pub fn modules(&self) -> &Arc<Modules> {
+        self.node.modules()
+    }
+
+    // to identify main server peer to handle proper server persistence
+    #[allow(dead_code)]
+    pub fn server_peer(&self) -> Option<Arc<Peer>> {
+        self.server_peer.get().cloned()
+    }
+}

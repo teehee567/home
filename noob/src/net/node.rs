@@ -6,12 +6,11 @@ use anyhow::Result;
 use quinn::{Endpoint, Incoming};
 
 use crate::consts::ACCOUNT_ID;
-use crate::core::auth::server_identity::ServerIdentity;
+use crate::core::auth::node_identity::NodeIdentity;
 use crate::core::auth::{client, server};
 use crate::core::crypto::opaque::OpaqueServer;
 use crate::modules::Modules;
 use crate::net::STREAM_ID;
-use crate::storage::secrets::Secrets;
 use crate::traits::SplittableStream;
 use crate::transport::conn_manager::{Peer, PeerId, PeerPool};
 use crate::transport::core_stream::CoreStream;
@@ -20,29 +19,26 @@ use crate::transport::quic::QuicStream;
 // for testing
 const DEV_TLS_FINGERPRINT: [u8; 32] = [0u8; 32];
 
+// node in mesh, every node is identical in theoyr, the server is the authority node that gets 
+// authority modules spawned in it
 pub struct Node {
     endpoint: Endpoint,
     pool: Arc<PeerPool<Modules>>,
     modules: Arc<Modules>,
     next_peer: AtomicU64,
-    identity: Arc<ServerIdentity>,
-    password: Vec<u8>,
+    identity: Arc<NodeIdentity>,
 }
 
 impl Node {
-    pub fn new(endpoint: Endpoint, modules: Arc<Modules>) -> Arc<Self> {
+    pub fn new(endpoint: Endpoint, modules: Arc<Modules>, identity: Arc<NodeIdentity>) -> Arc<Self> {
         let pool = PeerPool::new(modules.clone());
         modules.broadcast_events(pool.clone());
-        let secrets = Secrets::load(crate::storage::secrets::default_path());
-        let identity = Arc::new(ServerIdentity::generate().expect("generate server identity"));
-        let password = secrets.password();
         Arc::new(Self {
             endpoint,
             pool,
             modules,
             next_peer: AtomicU64::new(1),
             identity,
-            password,
         })
     }
 
@@ -91,14 +87,19 @@ impl Node {
         Ok(id)
     }
 
-    pub async fn connect(&self, addr: SocketAddr, server_name: &str) -> Result<Arc<Peer>> {
+    pub async fn connect(
+        &self,
+        addr: SocketAddr,
+        server_name: &str,
+        credential: &[u8],
+    ) -> Result<Arc<Peer>> {
         let conn = self.endpoint.connect(addr, server_name)?.await?;
         let (s, r) = conn.open_bi().await?;
         let mut hs = QuicStream::new((s, r));
 
         // temp for testing
-        let (enrollment, _export_key) = client::register(&self.password, &mut hs).await?;
-        let res = client::login(&self.password, &enrollment, &mut hs).await?;
+        let (enrollment, _export_key) = client::register(credential, &mut hs).await?;
+        let res = client::login(credential, &enrollment, &mut hs).await?;
         let (transport, key) = (res.transport, res.transport_key);
 
         let (reader, writer) = hs.split();

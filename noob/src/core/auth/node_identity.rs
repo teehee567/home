@@ -2,17 +2,18 @@ use anyhow::Result;
 use crate::core::crypto::{ml_kem, noise};
 use secrecy::SecretBox;
 
-// long term identity
+// long term node/device identity — who this node is in the mesh, used as the
+// responder identity when accepting connections
 // need to setup a way to pull form disk and store
 // conatins static keypair for noise ik and ml-kem-768
-pub struct ServerIdentity {
+pub struct NodeIdentity {
     noise_private: [u8; 32],
     noise_public: [u8; 32],
     ml_kem_dk_bytes: Vec<u8>,
     ml_kem_ek_bytes: Vec<u8>,
 }
 
-impl ServerIdentity {
+impl NodeIdentity {
     pub fn generate() -> Result<Self> {
         let kp = noise::generate_noise_keypair()?;
         let (dk_bytes, ek_bytes) = ml_kem::generate_keypair();
