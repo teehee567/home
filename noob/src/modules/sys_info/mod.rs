@@ -1,4 +1,4 @@
-use std::{process, time::Duration};
+use std::{process, thread, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
@@ -32,7 +32,7 @@ impl Module for SysinfoModule {
     type Event = ProcStats;
 
     fn new() -> Self {
-        let num_cpus = std::thread::available_parallelism()
+        let num_cpus = thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(1)
             .max(1) as f32;
