@@ -12,6 +12,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
+use crate::storage::NodeDeps;
 use crate::transport::frame::{Frame, FrameKind, error_frame};
 
 const REQUEST_CAP: usize = 128;
@@ -21,6 +22,9 @@ const EVENT_CAP: usize = 64;
 pub enum ModuleError {
     #[error("serialization error: {0}")]
     Serialization(#[from] postcard::Error),
+
+    #[error("storage error: {0}")]
+    Storage(#[from] sea_orm::DbErr),
 
     #[error("{0}")]
     Other(String),
@@ -34,7 +38,8 @@ pub trait Module: Send + Sized + 'static {
     type Response: Serialize + DeserializeOwned + Send + 'static;
     type Event: Clone + Send + Serialize + DeserializeOwned + 'static;
 
-    fn new() -> Self;
+    /// load state fail aborts startup
+    fn new(deps: &NodeDeps) -> impl Future<Output = Result<Self, ModuleError>> + Send;
 
     fn run(self, ctx: Context<Self>) -> impl Future<Output = ()> + Send;
 }
@@ -98,12 +103,13 @@ impl<M: Module> Handle<M> {
 }
 
 // create a module
-pub fn spawn<M: Module>() -> Handle<M> {
+pub async fn spawn<M: Module>(deps: &NodeDeps) -> Result<Handle<M>, ModuleError> {
     let (tx, rx) = mpsc::channel(REQUEST_CAP);
     let (events, _) = broadcast::channel(EVENT_CAP);
     let ctx = Context { rx, events: events.clone() };
-    tokio::spawn(M::new().run(ctx));
-    Handle { tx, events }
+    let module = M::new(deps).await?;
+    tokio::spawn(module.run(ctx));
+    Ok(Handle { tx, events })
 }
 
 /// dispatch to module and receive
@@ -171,13 +177,17 @@ macro_rules! register_modules {
 
         impl $modules {
             /// Spawn what an interactive user machine hosts (device + desktop).
-            $svis fn spawn_desktop() -> Self {
-                Self::spawn_groups(&[$route::DEVICE, $route::DESKTOP])
+            $svis async fn spawn_desktop(
+                deps: &$crate::storage::NodeDeps,
+            ) -> ::core::result::Result<Self, $crate::modules::ModuleError> {
+                Self::spawn_groups(&[$route::DEVICE, $route::DESKTOP], deps).await
             }
 
             /// Spawn what the always-on node hosts (device + authority).
-            $svis fn spawn_server() -> Self {
-                Self::spawn_groups(&[$route::DEVICE, $route::AUTHORITY])
+            $svis async fn spawn_server(
+                deps: &$crate::storage::NodeDeps,
+            ) -> ::core::result::Result<Self, $crate::modules::ModuleError> {
+                Self::spawn_groups(&[$route::DEVICE, $route::AUTHORITY], deps).await
             }
         }
     };
@@ -213,20 +223,26 @@ macro_rules! register_modules {
         )*
 
         impl $modules {
-            /// Spawn only the modules this node hosts. Routes not in any of
-            /// the `hosted` groups (or unavailable on this platform) dispatch
-            /// to an error frame.
-            pub fn spawn_groups(hosted: &[&[$route]]) -> Self {
-                Self {
+            /// spawn hosted modules only
+            #[allow(non_snake_case)]
+            pub async fn spawn_groups(
+                hosted: &[&[$route]],
+                deps: &$crate::storage::NodeDeps,
+            ) -> ::core::result::Result<Self, $crate::modules::ModuleError> {
+                $(
+                    #[cfg(all($($cfg,)?))]
+                    let $variant = if hosted.iter().any(|g| g.contains(&$route::$variant)) {
+                        ::core::option::Option::Some($crate::modules::spawn::<$ty>(deps).await?)
+                    } else {
+                        ::core::option::Option::None
+                    };
+                )*
+                ::core::result::Result::Ok(Self {
                     $(
                         #[cfg(all($($cfg,)?))]
-                        $variant: if hosted.iter().any(|g| g.contains(&$route::$variant)) {
-                            ::core::option::Option::Some($crate::modules::spawn::<$ty>())
-                        } else {
-                            ::core::option::Option::None
-                        },
+                        $variant,
                     )*
-                }
+                })
             }
 
             pub fn broadcast_events(

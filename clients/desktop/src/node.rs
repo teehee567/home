@@ -7,6 +7,7 @@ use noob::core::auth::node_identity::NodeIdentity;
 use noob::modules::Modules;
 use noob::net::Node;
 use noob::storage::secrets::{self, Secrets};
+use noob::storage::{NodeDeps, node_data_dir};
 use noob::transport::conn_manager::Peer;
 use noob::transport::quic;
 use quinn::rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
@@ -24,14 +25,15 @@ pub struct DesktopNode {
 }
 
 impl DesktopNode {
-    pub fn new() -> Result<Arc<Self>> {
+    pub async fn new() -> Result<Arc<Self>> {
         let endpoint = quic::client_endpoint(
             "0.0.0.0:0".parse()?,
             CertificateDer::from(CLIENT_CERT),
             PrivatePkcs8KeyDer::from(CLIENT_KEY),
             CertificateDer::from(PINNED_SERVER_CERT),
         )?;
-        let modules = Arc::new(Modules::spawn_desktop());
+        let deps = NodeDeps::open(node_data_dir("desktop")).await?;
+        let modules = Arc::new(Modules::spawn_desktop(&deps).await?);
         let identity = Arc::new(NodeIdentity::generate()?);
         let node = Node::new(endpoint, modules, identity);
         Ok(Arc::new(Self { node, server_peer: OnceCell::new() }))

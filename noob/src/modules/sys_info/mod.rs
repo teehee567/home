@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tokio::time;
 
-use crate::modules::{Context, Module};
+use crate::modules::{Context, Module, ModuleError};
+use crate::storage::NodeDeps;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProcStats {
@@ -31,18 +32,18 @@ impl Module for SysinfoModule {
     type Response = ProcStats;
     type Event = ProcStats;
 
-    fn new() -> Self {
+    async fn new(_deps: &NodeDeps) -> Result<Self, ModuleError> {
         let num_cpus = thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(1)
             .max(1) as f32;
 
-        Self {
+        Ok(Self {
             sys: System::new(),
             pid: Pid::from_u32(process::id()),
             num_cpus,
             current: ProcStats { cpu: 0.0, memory: 0 },
-        }
+        })
     }
 
     async fn run(mut self, mut ctx: Context<Self>) {

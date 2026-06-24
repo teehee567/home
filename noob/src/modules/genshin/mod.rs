@@ -10,7 +10,8 @@ use tokio::time;
 
 use fps_etw::EtwSession;
 
-use crate::modules::{Context, Module};
+use crate::modules::{Context, Module, ModuleError};
+use crate::storage::NodeDeps;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GenshinState {
@@ -37,13 +38,13 @@ impl Module for GenshinModule {
     type Response = GenshinState;
     type Event = GenshinState;
 
-    fn new() -> Self {
-        Self {
+    async fn new(_deps: &NodeDeps) -> Result<Self, ModuleError> {
+        Ok(Self {
             current: GenshinState { fps: None, running: false },
             tracked_pid: None,
             etw: None,
             scan_counter: 0,
-        }
+        })
     }
 
     async fn run(mut self, mut ctx: Context<Self>) {

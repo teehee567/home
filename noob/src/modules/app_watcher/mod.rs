@@ -1,11 +1,15 @@
+pub mod entity;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
+use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
 use tokio::time;
 
 use crate::modules::{Context, Module, ModuleError};
+use crate::storage::NodeDeps;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -31,10 +35,10 @@ pub enum AppWatcherResponse {
     State(Vec<AppState>),
 }
 
-// no persistence yet — the watch list starts empty each run (revisit with the
-// storage backend).
 pub struct AppWatcherModule {
-    paths: Vec<PathBuf>,
+    /// row id maps remove delete
+    apps: Vec<(i32, PathBuf)>,
+    db: DatabaseConnection,
 }
 
 impl Module for AppWatcherModule {
@@ -44,8 +48,16 @@ impl Module for AppWatcherModule {
     type Response = AppWatcherResponse;
     type Event = Vec<AppState>;
 
-    fn new() -> Self {
-        Self { paths: Vec::new() }
+    async fn new(deps: &NodeDeps) -> Result<Self, ModuleError> {
+        let db = deps.db();
+        let apps = entity::Entity::find()
+            .order_by_asc(entity::Column::Id)
+            .all(&db)
+            .await?
+            .into_iter()
+            .map(|m| (m.id, PathBuf::from(m.exe_path)))
+            .collect();
+        Ok(Self { apps, db })
     }
 
     async fn run(mut self, mut ctx: Context<Self>) {
@@ -57,14 +69,16 @@ impl Module for AppWatcherModule {
                         let resp = match req.payload {
                             AppWatcherRequest::Add(ref path) => {
                                 launch_if_offline(path);
-                                self.paths.push(path.clone());
-                                ctx.publish(self.snapshot());
-                                Ok(AppWatcherResponse::Ack)
+                                self.add(path.clone()).await.map(|()| {
+                                    ctx.publish(self.snapshot());
+                                    AppWatcherResponse::Ack
+                                })
                             }
-                            AppWatcherRequest::Remove(i) if i < self.paths.len() => {
-                                self.paths.remove(i);
-                                ctx.publish(self.snapshot());
-                                Ok(AppWatcherResponse::Ack)
+                            AppWatcherRequest::Remove(i) if i < self.apps.len() => {
+                                self.remove(i).await.map(|()| {
+                                    ctx.publish(self.snapshot());
+                                    AppWatcherResponse::Ack
+                                })
                             }
                             AppWatcherRequest::Remove(_) => {
                                 Err(ModuleError::Other("watch index out of range".into()))
@@ -84,8 +98,25 @@ impl Module for AppWatcherModule {
 }
 
 impl AppWatcherModule {
+    async fn add(&mut self, path: PathBuf) -> Result<(), ModuleError> {
+        let inserted = entity::ActiveModel {
+            exe_path: ActiveValue::Set(path.to_string_lossy().into_owned()),
+            ..Default::default()
+        }
+        .insert(&self.db)
+        .await?;
+        self.apps.push((inserted.id, path));
+        Ok(())
+    }
+
+    async fn remove(&mut self, i: usize) -> Result<(), ModuleError> {
+        entity::Entity::delete_by_id(self.apps[i].0).exec(&self.db).await?;
+        self.apps.remove(i);
+        Ok(())
+    }
+
     fn snapshot(&self) -> Vec<AppState> {
-        self.paths.iter().map(state_of).collect()
+        self.apps.iter().map(|(_, path)| state_of(path)).collect()
     }
 }
 

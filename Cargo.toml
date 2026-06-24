@@ -29,7 +29,7 @@ hybrid-array = "0.4"
 zeroize = { version = "1", features = ["derive"] }
 postcard = { version = "1", features = ["alloc"] }
 serde = { version = "1", features = ["derive"] }
-redb = "3.1.1"
+sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
 tokio = { version = "1", features = ["full"] }
 prost = "0.14.3"
 slint = "1"

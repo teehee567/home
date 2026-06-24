@@ -22,7 +22,8 @@ fn main() {
     let _guard = rt.enter();
 
     let app = App::new().unwrap();
-    let node = node::DesktopNode::new().expect("build desktop node");
+    // block on load state first
+    let node = rt.block_on(node::DesktopNode::new()).expect("build desktop node");
 
     #[cfg(windows)]
     genshin::setup(&app, node.clone());

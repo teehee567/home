@@ -30,7 +30,7 @@ thiserror = { workspace = true }
 trait-variant = { workspace = true }
 quinn = { workspace = true }
 tokio = { workspace = true }
-redb = { workspace = true }
+sea-orm = { workspace = true }
 
 sysinfo = { workspace = true }
 dirs-next = { workspace = true }

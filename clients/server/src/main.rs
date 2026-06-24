@@ -5,6 +5,7 @@ use anyhow::Result;
 use noob::core::auth::node_identity::NodeIdentity;
 use noob::modules::Modules;
 use noob::net::Node;
+use noob::storage::{NodeDeps, node_data_dir};
 use noob::transport::quic;
 use quinn::rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 
@@ -22,7 +23,8 @@ async fn main() -> Result<()> {
         CertificateDer::from(PINNED_CLIENT_CERT),
     )?;
 
-    let modules = Arc::new(Modules::spawn_server());
+    let deps = NodeDeps::open(node_data_dir("server")).await?;
+    let modules = Arc::new(Modules::spawn_server(&deps).await?);
     let identity = Arc::new(NodeIdentity::generate()?);
     let node = Node::new(endpoint, modules, identity);
 
