@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait, QueryOrder};
+use sea_orm::sea_query::TableCreateStatement;
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait, QueryOrder, Schema,
+};
 use serde::{Deserialize, Serialize};
 use tokio::time;
 
@@ -47,6 +50,10 @@ impl Module for AppWatcherModule {
     type Request = AppWatcherRequest;
     type Response = AppWatcherResponse;
     type Event = Vec<AppState>;
+
+    fn tables(schema: &Schema) -> Vec<TableCreateStatement> {
+        vec![schema.create_table_from_entity(entity::Entity)]
+    }
 
     async fn new(deps: &NodeDeps) -> Result<Self, ModuleError> {
         let db = deps.db();

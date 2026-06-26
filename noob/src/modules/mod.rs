@@ -8,6 +8,8 @@ pub use registry::{ModuleId, Modules};
 
 use std::future::Future;
 
+use sea_orm::sea_query::TableCreateStatement;
+use sea_orm::{ConnectionTrait, Schema};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -37,6 +39,11 @@ pub trait Module: Send + Sized + 'static {
     type Request: Serialize + DeserializeOwned + Send + 'static;
     type Response: Serialize + DeserializeOwned + Send + 'static;
     type Event: Clone + Send + Serialize + DeserializeOwned + 'static;
+
+    /// tables this module needs created; default = none
+    fn tables(_schema: &Schema) -> Vec<TableCreateStatement> {
+        Vec::new()
+    }
 
     /// load state fail aborts startup
     fn new(deps: &NodeDeps) -> impl Future<Output = Result<Self, ModuleError>> + Send;
@@ -104,6 +111,15 @@ impl<M: Module> Handle<M> {
 
 // create a module
 pub async fn spawn<M: Module>(deps: &NodeDeps) -> Result<Handle<M>, ModuleError> {
+    let db = deps.db();
+    let backend = db.get_database_backend();
+    let schema = Schema::new(backend);
+    // if tables doesnt exist then create
+    for mut stmt in M::tables(&schema) {
+        stmt.if_not_exists();
+        db.execute(backend.build(&stmt)).await?;
+    }
+
     let (tx, rx) = mpsc::channel(REQUEST_CAP);
     let (events, _) = broadcast::channel(EVENT_CAP);
     let ctx = Context { rx, events: events.clone() };
