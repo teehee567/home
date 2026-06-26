@@ -1,4 +1,4 @@
-pub mod entity;
+pub mod app_watcher_store;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -52,13 +52,13 @@ impl Module for AppWatcherModule {
     type Event = Vec<AppState>;
 
     fn tables(schema: &Schema) -> Vec<TableCreateStatement> {
-        vec![schema.create_table_from_entity(entity::Entity)]
+        vec![schema.create_table_from_entity(app_watcher_store::Entity)]
     }
 
     async fn new(deps: &NodeDeps) -> Result<Self, ModuleError> {
         let db = deps.db();
-        let apps = entity::Entity::find()
-            .order_by_asc(entity::Column::Id)
+        let apps = app_watcher_store::Entity::find()
+            .order_by_asc(app_watcher_store::Column::Id)
             .all(&db)
             .await?
             .into_iter()
@@ -106,7 +106,7 @@ impl Module for AppWatcherModule {
 
 impl AppWatcherModule {
     async fn add(&mut self, path: PathBuf) -> Result<(), ModuleError> {
-        let inserted = entity::ActiveModel {
+        let inserted = app_watcher_store::ActiveModel {
             exe_path: ActiveValue::Set(path.to_string_lossy().into_owned()),
             ..Default::default()
         }
@@ -117,7 +117,7 @@ impl AppWatcherModule {
     }
 
     async fn remove(&mut self, i: usize) -> Result<(), ModuleError> {
-        entity::Entity::delete_by_id(self.apps[i].0).exec(&self.db).await?;
+        app_watcher_store::Entity::delete_by_id(self.apps[i].0).exec(&self.db).await?;
         self.apps.remove(i);
         Ok(())
     }
