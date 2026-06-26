@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use noob::core::auth::node_identity::NodeIdentity;
+use noob::core::auth::server_store;
 use noob::modules::Modules;
 use noob::net::Node;
 use noob::storage::secrets::{self, Secrets};
@@ -34,8 +35,9 @@ impl DesktopNode {
         )?;
         let deps = NodeDeps::open(node_data_dir("desktop")).await?;
         let modules = Arc::new(Modules::spawn_desktop(&deps).await?);
-        let identity = Arc::new(NodeIdentity::generate()?);
-        let node = Node::new(endpoint, modules, identity);
+        let identity = Arc::new(NodeIdentity::load_or_generate(&deps.db()).await?);
+        let opaque = Arc::new(server_store::load_opaque_server(&deps.db()).await?);
+        let node = Node::new(endpoint, modules, identity, opaque, deps.db());
         Ok(Arc::new(Self { node, server_peer: OnceCell::new() }))
     }
 

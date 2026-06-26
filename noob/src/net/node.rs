@@ -2,16 +2,17 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow};
 use quinn::{Endpoint, Incoming};
+use sea_orm::DatabaseConnection;
 
 use crate::consts::ACCOUNT_ID;
 use crate::core::auth::node_identity::NodeIdentity;
-use crate::core::auth::{client, server};
+use crate::core::auth::{HandshakeIntent, client, client_store, server, server_store};
 use crate::core::crypto::opaque::OpaqueServer;
 use crate::modules::Modules;
 use crate::net::STREAM_ID;
-use crate::traits::SplittableStream;
+use crate::traits::{FramedStream, SplittableStream};
 use crate::transport::conn_manager::{Peer, PeerId, PeerPool};
 use crate::transport::core_stream::CoreStream;
 use crate::transport::quic::QuicStream;
@@ -27,10 +28,19 @@ pub struct Node {
     modules: Arc<Modules>,
     next_peer: AtomicU64,
     identity: Arc<NodeIdentity>,
+    // setup only, records in db
+    opaque: Arc<OpaqueServer>,
+    db: DatabaseConnection,
 }
 
 impl Node {
-    pub fn new(endpoint: Endpoint, modules: Arc<Modules>, identity: Arc<NodeIdentity>) -> Arc<Self> {
+    pub fn new(
+        endpoint: Endpoint,
+        modules: Arc<Modules>,
+        identity: Arc<NodeIdentity>,
+        opaque: Arc<OpaqueServer>,
+        db: DatabaseConnection,
+    ) -> Arc<Self> {
         let pool = PeerPool::new(modules.clone());
         modules.broadcast_events(pool.clone());
         Arc::new(Self {
@@ -39,6 +49,8 @@ impl Node {
             modules,
             next_peer: AtomicU64::new(1),
             identity,
+            opaque,
+            db,
         })
     }
 
@@ -65,17 +77,41 @@ impl Node {
         let (s, r) = conn.accept_bi().await?;
         let mut hs = QuicStream::new((s, r));
 
-        // temp for testing
-        let mut opaque = OpaqueServer::new();
-        let blob = server::handle_registration(
+        // register or login
+        let intent: HandshakeIntent = postcard::from_bytes(&hs.receive().await?)
+            .context("malformed handshake intent")?;
+
+        if intent == HandshakeIntent::Register {
+            let outcome = server::handle_registration(
+                &self.identity,
+                &self.opaque,
+                ACCOUNT_ID,
+                &DEV_TLS_FINGERPRINT,
+                &mut hs,
+            )
+            .await?;
+            server_store::persist_registration(
+                &self.db,
+                ACCOUNT_ID,
+                &outcome.registration_record,
+                &outcome.at_rest_blob,
+            )
+            .await?;
+        }
+
+        // creds from db
+        let (record, at_rest) = server_store::fetch_user(&self.db, ACCOUNT_ID)
+            .await?
+            .ok_or_else(|| anyhow!("login for unregistered user"))?;
+        let res = server::handle_login(
             &self.identity,
-            &mut opaque,
+            &self.opaque,
             ACCOUNT_ID,
-            &DEV_TLS_FINGERPRINT,
+            &record,
+            &at_rest,
             &mut hs,
         )
         .await?;
-        let res = server::handle_login(&self.identity, &opaque, ACCOUNT_ID, &blob, &mut hs).await?;
         let (transport, key) = (res.transport, res.transport_key);
 
         let (reader, writer) = hs.split();
@@ -97,8 +133,20 @@ impl Node {
         let (s, r) = conn.open_bi().await?;
         let mut hs = QuicStream::new((s, r));
 
-        // temp for testing
-        let (enrollment, _export_key) = client::register(credential, &mut hs).await?;
+        // login if enrolled else register first
+        let enrollment = match client_store::load_enrollment(&self.db).await? {
+            Some(enrollment) => {
+                hs.send(&postcard::to_allocvec(&HandshakeIntent::Login)?).await?;
+                enrollment
+            }
+            None => {
+                hs.send(&postcard::to_allocvec(&HandshakeIntent::Register)?).await?;
+                let (enrollment, _export_key) = client::register(credential, &mut hs).await?;
+                client_store::persist_enrollment(&self.db, &enrollment).await?;
+                enrollment
+            }
+        };
+
         let res = client::login(credential, &enrollment, &mut hs).await?;
         let (transport, key) = (res.transport, res.transport_key);
 

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use noob::core::auth::node_identity::NodeIdentity;
+use noob::core::auth::server_store;
 use noob::modules::Modules;
 use noob::net::Node;
 use noob::storage::{NodeDeps, node_data_dir};
@@ -25,8 +26,9 @@ async fn main() -> Result<()> {
 
     let deps = NodeDeps::open(node_data_dir("server")).await?;
     let modules = Arc::new(Modules::spawn_server(&deps).await?);
-    let identity = Arc::new(NodeIdentity::generate()?);
-    let node = Node::new(endpoint, modules, identity);
+    let identity = Arc::new(NodeIdentity::load_or_generate(&deps.db()).await?);
+    let opaque = Arc::new(server_store::load_opaque_server(&deps.db()).await?);
+    let node = Node::new(endpoint, modules, identity, opaque, deps.db());
 
     println!("home server listening on {addr}");
     node.listen().await;

@@ -1,10 +1,7 @@
-use std::collections::HashMap;
-
 use anyhow::{Context, Result};
 use opaque_ke::{
     CredentialFinalization, CredentialRequest, RegistrationRequest, RegistrationUpload,
-    ServerLogin, ServerLoginParameters, ServerRegistration, ServerRegistrationLen, ServerSetup,
-    generic_array::GenericArray, rand::rngs::OsRng,
+    ServerLogin, ServerLoginParameters, ServerRegistration, ServerSetup, rand::rngs::OsRng,
 };
 use secrecy::SecretBox;
 use zeroize::Zeroize;
@@ -13,18 +10,26 @@ use super::OpaqueCipherSuite;
 
 pub struct ServerLoginState(ServerLogin<OpaqueCipherSuite>);
 
+// immutable setup only, records live in db
 pub struct OpaqueServer {
     server_setup: ServerSetup<OpaqueCipherSuite>,
-    registered_users: HashMap<String, GenericArray<u8, ServerRegistrationLen<OpaqueCipherSuite>>>,
 }
 
 impl OpaqueServer {
+    // random setup on first run
     pub fn new() -> Self {
         let mut rng = OsRng;
-        Self {
-            server_setup: ServerSetup::<OpaqueCipherSuite>::new(&mut rng),
-            registered_users: HashMap::new(),
-        }
+        Self { server_setup: ServerSetup::<OpaqueCipherSuite>::new(&mut rng) }
+    }
+
+    pub fn from_setup_bytes(bytes: &[u8]) -> Result<Self> {
+        let server_setup = ServerSetup::<OpaqueCipherSuite>::deserialize(bytes)
+            .context("deserialize opaque server setup")?;
+        Ok(Self { server_setup })
+    }
+
+    pub fn serialize_setup(&self) -> Vec<u8> {
+        self.server_setup.serialize().to_vec()
     }
 
     pub fn registration_start(&self, username: &str, request_bytes: &[u8]) -> Result<Vec<u8>> {
@@ -37,31 +42,30 @@ impl OpaqueServer {
         Ok(start.message.serialize().to_vec())
     }
 
-    pub fn registration_finish(&mut self, username: &str, upload_bytes: &[u8]) -> Result<()> {
+    // returns record for caller to persist
+    pub fn process_registration_upload(&self, upload_bytes: &[u8]) -> Result<Vec<u8>> {
         let upload = RegistrationUpload::<OpaqueCipherSuite>::deserialize(upload_bytes)?;
-        let password = ServerRegistration::finish(upload);
-        self.registered_users
-            .insert(username.to_owned(), password.serialize());
-        Ok(())
+        let record = ServerRegistration::finish(upload);
+        Ok(record.serialize().to_vec())
     }
 
+    // record supplied by caller
     pub fn login_start(
         &self,
         username: &str,
         ke1_bytes: &[u8],
+        registration_record_bytes: &[u8],
     ) -> Result<(Vec<u8>, ServerLoginState)> {
-        let pf_bytes = self
-            .registered_users
-            .get(username)
-            .context("unknown user")?;
-        let pf = ServerRegistration::<OpaqueCipherSuite>::deserialize(pf_bytes)?;
+        let record =
+            ServerRegistration::<OpaqueCipherSuite>::deserialize(registration_record_bytes)
+                .context("deserialize stored registration record")?;
         let request = CredentialRequest::deserialize(ke1_bytes)?;
 
         let mut rng = OsRng;
         let start = ServerLogin::start(
             &mut rng,
             &self.server_setup,
-            Some(pf),
+            Some(record),
             request,
             username.as_bytes(),
             ServerLoginParameters::default(),

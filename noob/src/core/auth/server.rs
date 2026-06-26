@@ -20,14 +20,14 @@ use super::node_identity::NodeIdentity;
 const NOISE_MSG_BUF: usize = 65535;
 
 /// sends server noise static ublic and ML-KEM-768 public inside opaque registration
-/// returns encrypted at rest key
+// returns record and at-rest blob to persist
 pub async fn handle_registration(
     server_identity: &NodeIdentity,
-    opaque_server: &mut OpaqueServer,
+    opaque_server: &OpaqueServer,
     username: &str,
     tls_cert_fingerprint: &[u8; 32],
     stream: &mut impl FramedStream,
-) -> Result<Vec<u8>> {
+) -> Result<RegistrationOutcome> {
     // receive RegistrationStart
     let start: RegistrationStart = postcard::from_bytes(&stream.receive().await?)
         .context("malformed registration start")?;
@@ -49,11 +49,14 @@ pub async fn handle_registration(
     let fin: RegistrationFinalize = postcard::from_bytes(&stream.receive().await?)
         .context("malformed registration finalize")?;
 
-    // finish OPAQUE registration
-    opaque_server.registration_finish(username, &fin.opaque_registration_record)?;
+    // finish into record for caller to persist
+    let registration_record =
+        opaque_server.process_registration_upload(&fin.opaque_registration_record)?;
 
-    // return the encrypted at rest key
-    Ok(fin.encrypted_at_rest_key_blob)
+    Ok(RegistrationOutcome {
+        registration_record,
+        at_rest_blob: fin.encrypted_at_rest_key_blob,
+    })
 }
 
 /// combined Noise IK + ML-KEM-768 + OPAQUE login handshake.
@@ -69,10 +72,12 @@ pub async fn handle_registration(
 ///
 /// AFter 4 both sides have final_key which is
 /// `HKDF(ml_kem_ss || opaque_session_key, noise_handshake_hash, "noob:transport:final:1"`
+#[allow(clippy::too_many_arguments)]
 pub async fn handle_login(
     server_identity: &NodeIdentity,
     opaque_server: &OpaqueServer,
     username: &str,
+    registration_record: &[u8],
     encrypted_at_rest_key_blob: &[u8],
     stream: &mut impl FramedStream,
 ) -> Result<ServerHandshakeResult> {
@@ -91,8 +96,9 @@ pub async fn handle_login(
     // ML-KEM-768 decapsulate
     let ml_kem_ss = server_identity.ml_kem_decapsulate(&f1.ml_kem_ciphertext)?;
 
-    // OPAQUE login start create ke2 from ke1
-    let (ke2, opaque_state) = opaque_server.login_start(username, &f1.opaque_ke1)?;
+    // login start against stored record
+    let (ke2, opaque_state) =
+        opaque_server.login_start(username, &f1.opaque_ke1, registration_record)?;
 
     // build + send Noise Flight
     let f2_payload = postcard::to_allocvec(&Flight2Payload {

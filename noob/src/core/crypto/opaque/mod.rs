@@ -28,17 +28,18 @@ mod tests {
         let (reg_request, client_reg_state) =
             OpaqueClient::registration_start(password).unwrap();
 
-        let mut server = OpaqueServer::new();
+        let server = OpaqueServer::new();
         let reg_response = server.registration_start(username, &reg_request).unwrap();
 
         let (reg_upload, _) =
             OpaqueClient::registration_finish(client_reg_state, password, &reg_response).unwrap();
 
-        server.registration_finish(username, &reg_upload).unwrap();
+        // caller persists this record; we feed it straight back into login
+        let record = server.process_registration_upload(&reg_upload).unwrap();
 
         let (ke1, client_login_state) = OpaqueClient::login_start(password).unwrap();
 
-        let (ke2, server_login_state) = server.login_start(username, &ke1).unwrap();
+        let (ke2, server_login_state) = server.login_start(username, &ke1, &record).unwrap();
 
         let (ke3, client_result) =
             OpaqueClient::login_finish(client_login_state, password, &ke2).unwrap();

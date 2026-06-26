@@ -16,12 +16,15 @@ impl NodeDeps {
         std::fs::create_dir_all(&data_dir)
             .map_err(|e| DbErr::Custom(format!("create data dir {}: {e}", data_dir.display())))?;
         let db = store::open_db(data_dir.join("noob.db")).await?;
+        super::schema::ensure_node_tables(&db).await?;
         Ok(Self { db, data_dir })
     }
 
     /// in memory db for tests
     pub async fn memory() -> Result<Self, DbErr> {
-        Ok(Self { db: store::memory_db().await?, data_dir: std::env::temp_dir() })
+        let db = store::memory_db().await?;
+        super::schema::ensure_node_tables(&db).await?;
+        Ok(Self { db, data_dir: std::env::temp_dir() })
     }
 
     /// clone pooled db handle

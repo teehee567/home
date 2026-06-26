@@ -6,6 +6,19 @@ use snow::StatelessTransportState;
 
 pub const HANDSHAKE_OK: &[u8] = b"MEOW_OK";
 
+// first handshake message
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HandshakeIntent {
+    Register,
+    Login,
+}
+
+// register output to persist
+pub struct RegistrationOutcome {
+    pub registration_record: Vec<u8>,
+    pub at_rest_blob: Vec<u8>,
+}
+
 // registration
 
 #[derive(Serialize, Deserialize)]
