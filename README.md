@@ -1,5 +1,10 @@
 # home
 
+# Requirements
+install cross using the git version
+docker on both systems
+ssh setup with key for ease of use
+
 ## Build & install (Windows)
 
 ```pwsh
