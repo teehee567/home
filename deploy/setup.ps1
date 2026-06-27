@@ -1,8 +1,11 @@
 param(
     [Parameter(Mandatory = $true)] [string]$SshTarget,   # user@host of the home server
-    [string]$DataDir = "/srv/noob/data" # must match the bind path in compose.yml
+    [string]$DataDir                                      # defaults to the ssh user's home (see below)
 )
 $ErrorActionPreference = "Stop"
+
+if (-not $DataDir) { $DataDir = "/home/$(($SshTarget -split '@')[0])/noob_server/data" }
+$env:NOOB_DATA_DIR = $DataDir
 
 # cross compile first
 if (-not (Get-Command cross -ErrorAction SilentlyContinue)) {

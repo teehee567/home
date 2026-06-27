@@ -8,5 +8,5 @@ services:
     ports:
       - "4433:4433/udp"
     volumes:
-      - /srv/noob/data:/data
+      - ${NOOB_DATA_DIR:?run via deploy/redeploy.ps1 so NOOB_DATA_DIR is set}:/data
     restart: unless-stopped

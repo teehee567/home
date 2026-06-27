@@ -5,6 +5,14 @@ $root    = Split-Path -Parent $PSScriptRoot
 $context = "home"
 $project = "noob"
 
+if (-not $env:NOOB_DATA_DIR) {
+    $endpoint = docker context inspect $context --format '{{.Endpoints.docker.Host}}'
+    if ($LASTEXITCODE -ne 0) { throw "could not inspect docker context '$context'" }
+    if ($endpoint -notmatch '^ssh://([^@/]+)@') { throw "context '$context' endpoint '$endpoint' is not ssh://user@host" }
+    $env:NOOB_DATA_DIR = "/home/$($Matches[1])/noob_server/data"
+}
+Write-Host "data dir: $($env:NOOB_DATA_DIR)"
+
 Push-Location $root
 try {
     Write-Host "building"
