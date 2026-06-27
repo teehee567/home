@@ -27,11 +27,11 @@ Write-Host "ensuring $DataDir exists"
 ssh $SshTarget "mkdir -p $DataDir"
 if ($LASTEXITCODE -ne 0) { throw "could not create $DataDir on the home server" }
 
-# first build
-& "$PSScriptRoot/redeploy.ps1"
+# first build (server only; client install is the one-time MSI, then redeploy.ps1 updates it)
+& "$PSScriptRoot/redeploy.ps1" -SkipClient
 
-$hostOnly = ($SshTarget -split '@')[-1]
 Write-Host "`ndone. next:"
 Write-Host "  - Portainer: Stacks -> Add -> paste deploy/compose.yml, name the stack 'noob'."
-Write-Host "  - Set NOOB_SERVER=${hostOnly}:4433 for the desktop client (then relaunch it)."
+Write-Host "  - Install the desktop client once: run installer/build.ps1, then the generated MSI."
+Write-Host "  - From then on, deploy/redeploy.ps1 (elevated) redeploys the server AND relaunches the client."
 Write-Host "  - Make sure UDP 4433 is open on the home server's firewall."
