@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     let modules = Arc::new(Modules::spawn_server(&deps).await?);
     let identity = Arc::new(NodeIdentity::load_or_generate(&deps.db()).await?);
     let opaque = Arc::new(server_store::load_opaque_server(&deps.db()).await?);
-    let node = Node::new(endpoint, modules, identity, opaque, deps.db());
+    let node = Node::new(endpoint, modules, identity, opaque, deps.db(), deps.net_stats());
 
     println!("home server listening on {addr}");
     node.listen().await;

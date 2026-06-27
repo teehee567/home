@@ -37,7 +37,7 @@ impl DesktopNode {
         let modules = Arc::new(Modules::spawn_desktop(&deps).await?);
         let identity = Arc::new(NodeIdentity::load_or_generate(&deps.db()).await?);
         let opaque = Arc::new(server_store::load_opaque_server(&deps.db()).await?);
-        let node = Node::new(endpoint, modules, identity, opaque, deps.db());
+        let node = Node::new(endpoint, modules, identity, opaque, deps.db(), deps.net_stats());
         Ok(Arc::new(Self { node, server_peer: OnceCell::new() }))
     }
 

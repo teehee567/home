@@ -11,7 +11,7 @@ use crate::core::auth::node_identity::NodeIdentity;
 use crate::core::auth::{HandshakeIntent, client, client_store, server, server_store};
 use crate::core::crypto::opaque::OpaqueServer;
 use crate::modules::Modules;
-use crate::net::STREAM_ID;
+use crate::net::{NetStats, STREAM_ID};
 use crate::traits::{FramedStream, SplittableStream};
 use crate::transport::conn_manager::{Peer, PeerId, PeerPool};
 use crate::transport::core_stream::CoreStream;
@@ -31,6 +31,8 @@ pub struct Node {
     // setup only, records in db
     opaque: Arc<OpaqueServer>,
     db: DatabaseConnection,
+    // live quinn connections, read by the metrics module
+    net_stats: NetStats,
 }
 
 impl Node {
@@ -40,6 +42,7 @@ impl Node {
         identity: Arc<NodeIdentity>,
         opaque: Arc<OpaqueServer>,
         db: DatabaseConnection,
+        net_stats: NetStats,
     ) -> Arc<Self> {
         let pool = PeerPool::new(modules.clone());
         modules.broadcast_events(pool.clone());
@@ -51,6 +54,7 @@ impl Node {
             identity,
             opaque,
             db,
+            net_stats,
         })
     }
 
@@ -118,8 +122,13 @@ impl Node {
         let core = CoreStream::new((writer.into(), reader.into()), transport, STREAM_ID, key);
         let id = self.next_peer.fetch_add(1, Ordering::Relaxed);
         self.pool.attach(id, core);
+        self.net_stats.insert(id, conn.clone());
 
-        tokio::spawn(async move { let _ = conn.closed().await; });
+        let net_stats = self.net_stats.clone();
+        tokio::spawn(async move {
+            let _ = conn.closed().await;
+            net_stats.remove(id);
+        });
         Ok(id)
     }
 
@@ -154,8 +163,13 @@ impl Node {
         let core = CoreStream::new((writer.into(), reader.into()), transport, STREAM_ID, key);
         let id = self.next_peer.fetch_add(1, Ordering::Relaxed);
         let peer = self.pool.attach(id, core);
+        self.net_stats.insert(id, conn.clone());
 
-        tokio::spawn(async move { let _ = conn.closed().await; });
+        let net_stats = self.net_stats.clone();
+        tokio::spawn(async move {
+            let _ = conn.closed().await;
+            net_stats.remove(id);
+        });
         Ok(peer)
     }
 }

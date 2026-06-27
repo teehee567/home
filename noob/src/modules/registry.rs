@@ -4,7 +4,7 @@ crate::register_modules! {
     pub struct Modules;
 
     device {
-        Sysinfo => super::sys_info::SysinfoModule,
+        Metrics => super::metrics::MetricsModule,
     }
 
     // modules that only make sense on an interactive user machine

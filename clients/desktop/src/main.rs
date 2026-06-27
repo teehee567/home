@@ -9,8 +9,8 @@ use tokio::runtime::Runtime;
 mod app_watcher;
 #[cfg(windows)]
 mod genshin;
+mod metrics;
 mod node;
-mod sysinfo;
 
 slint::include_modules!();
 
@@ -28,7 +28,7 @@ fn main() {
     #[cfg(windows)]
     genshin::setup(&app, node.clone());
     app_watcher::setup(&app, node.clone());
-    sysinfo::setup(&app, node);
+    metrics::setup(&app, node);
 
     app.window().on_close_requested(move || {
         #[cfg(windows)]

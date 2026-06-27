@@ -22,7 +22,7 @@ mod tests {
     use crate::traits::{FramedSender, FramedStream, SplittableStream, FramedReceiver};
     use secrecy::SecretBox;
 
-    const ROUTE: ModuleId = ModuleId::Sysinfo;
+    const ROUTE: ModuleId = ModuleId::Metrics;
 
     #[tokio::test]
     async fn full_stack_encrypts_and_roundtrips() {

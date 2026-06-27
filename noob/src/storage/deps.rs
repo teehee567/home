@@ -3,11 +3,14 @@ use std::path::PathBuf;
 use sea_orm::{DatabaseConnection, DbErr};
 
 use super::store;
+use crate::net::NetStats;
 
 /// deps passed to each module
 pub struct NodeDeps {
     db: DatabaseConnection,
     pub data_dir: PathBuf,
+
+    net_stats: NetStats,
 }
 
 impl NodeDeps {
@@ -17,19 +20,24 @@ impl NodeDeps {
             .map_err(|e| DbErr::Custom(format!("create data dir {}: {e}", data_dir.display())))?;
         let db = store::open_db(data_dir.join("noob.db")).await?;
         super::schema::ensure_node_tables(&db).await?;
-        Ok(Self { db, data_dir })
+        Ok(Self { db, data_dir, net_stats: NetStats::new() })
     }
 
     /// in memory db for tests
     pub async fn memory() -> Result<Self, DbErr> {
         let db = store::memory_db().await?;
         super::schema::ensure_node_tables(&db).await?;
-        Ok(Self { db, data_dir: std::env::temp_dir() })
+        Ok(Self { db, data_dir: std::env::temp_dir(), net_stats: NetStats::new() })
     }
 
     /// clone pooled db handle
     pub fn db(&self) -> DatabaseConnection {
         self.db.clone()
+    }
+
+    /// handle to the live-connection registry; pass the same one to [`crate::net::Node::new`]
+    pub fn net_stats(&self) -> NetStats {
+        self.net_stats.clone()
     }
 }
 

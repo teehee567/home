@@ -1,7 +1,7 @@
 #[cfg(windows)]
 pub mod genshin;
 pub mod app_watcher;
-pub mod sys_info;
+pub mod metrics;
 mod registry;
 
 pub use registry::{ModuleId, Modules};
