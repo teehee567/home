@@ -1,0 +1,12 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: noob-server:dev
+    container_name: noob-server
+    ports:
+      - "4433:4433/udp"
+    volumes:
+      - /srv/noob/data:/data
+    restart: unless-stopped

@@ -18,7 +18,7 @@ const CLIENT_CERT: &[u8] = include_bytes!("../../../out/certs/client-cert.der");
 const CLIENT_KEY: &[u8] = include_bytes!("../../../out/certs/client-key.der");
 const PINNED_SERVER_CERT: &[u8] = include_bytes!("../../../out/certs/server-cert.der");
 
-const DEFAULT_ADDR: &str = "127.0.0.1:4433";
+const DEFAULT_ADDR: &str = "noob.local:4433";
 
 pub struct DesktopNode {
     node: Arc<Node>,
@@ -44,9 +44,14 @@ impl DesktopNode {
     pub async fn connect_server(&self) -> Result<Arc<Peer>> {
         self.server_peer
             .get_or_try_init(|| async {
-                let addr: SocketAddr = env::var("NOOB_SERVER")
-                    .unwrap_or_else(|_| DEFAULT_ADDR.to_string())
-                    .parse()?;
+                let target = env::var("NOOB_SERVER").unwrap_or_else(|_| DEFAULT_ADDR.to_string());
+                let resolved: Vec<SocketAddr> = tokio::net::lookup_host(&target).await?.collect();
+                let addr = resolved
+                    .iter()
+                    .find(|a| a.is_ipv4())
+                    .or_else(|| resolved.first())
+                    .copied()
+                    .ok_or_else(|| anyhow::anyhow!("could not resolve {target}"))?;
                 let password = Secrets::load(secrets::default_path()).password();
                 self.node.connect(addr, "localhost", &password).await
             })
