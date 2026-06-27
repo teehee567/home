@@ -229,6 +229,8 @@ macro_rules! register_modules {
         #[allow(non_snake_case)]
         $svis struct $modules {
             $( #[cfg(all($($cfg,)?))] pub $variant: ::core::option::Option<$crate::modules::Handle<$ty>>, )*
+            // telemetry shared with metrics module, written on dispatch
+            telemetry: $crate::net::Telemetry,
         }
 
         $(
@@ -258,6 +260,7 @@ macro_rules! register_modules {
                         #[cfg(all($($cfg,)?))]
                         $variant,
                     )*
+                    telemetry: deps.telemetry(),
                 })
             }
 
@@ -299,10 +302,13 @@ macro_rules! register_modules {
                 _peer: $crate::transport::conn_manager::PeerId,
                 frame: $crate::transport::frame::Frame,
             ) -> ::core::option::Option<$crate::transport::frame::Frame> {
-                match frame.route {
+                // reader_loop only dispatches requests, record every call
+                let bytes_in = frame.payload.len();
+                let start = ::std::time::Instant::now();
+                let resp: $crate::transport::frame::Frame = match frame.route {
                     $(
                         #[cfg(all($($cfg,)?))]
-                        $route::$variant => ::core::option::Option::Some(
+                        $route::$variant => {
                             match &self.$variant {
                                 ::core::option::Option::Some(handle) => {
                                     $crate::modules::dispatch_to(handle, frame).await
@@ -316,18 +322,25 @@ macro_rules! register_modules {
                                     )
                                 }
                             }
-                        ),
+                        }
                         #[cfg(not(all($($cfg,)?)))]
-                        $route::$variant => ::core::option::Option::Some(
+                        $route::$variant => {
                             $crate::transport::frame::error_frame(
                                 &frame,
                                 ::std::string::String::from(
                                     "module unsupported on this platform",
                                 ),
                             )
-                        ),
+                        }
                     )*
-                }
+                };
+                self.telemetry.record(
+                    bytes_in,
+                    resp.payload.len(),
+                    start.elapsed(),
+                    resp.kind == $crate::transport::frame::FrameKind::Error,
+                );
+                ::core::option::Option::Some(resp)
             }
         }
     };

@@ -1,0 +1,139 @@
+import { LineGraph, GraphData } from "../components/line_graph.slint";
+
+export { GraphData }
+
+export struct MetricStat {
+    label: string,
+    value: string,
+    accent: color,
+}
+
+component StatCard inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <color> accent: #58a6ff;
+
+    horizontal-stretch: 1;
+    height: 52px;
+    background: #0d1117;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: #21262d;
+
+    VerticalLayout {
+        padding: 8px;
+        spacing: 2px;
+
+        Text {
+            text: root.label;
+            color: root.accent;
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.value;
+            color: #e6edf3;
+            font-size: 15px;
+            font-weight: 700;
+            overflow: elide;
+        }
+    }
+}
+
+export component MetricsPage inherits Rectangle {
+    in property <[MetricStat]> stats: [];
+    in property <[GraphData]> series-left: [];
+    in property <[GraphData]> series-right: [];
+    in property <string> status: "Not connected";
+    in property <bool> connected: false;
+    // chart plot pixel size, so rust can size the path
+    callback plot-resized(length, length);
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 12px;
+
+        HorizontalLayout {
+            Text {
+                text: "Metrics";
+                color: #e6edf3;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            Text {
+                text: root.status;
+                color: root.connected ? #3fb950 : #484f58;
+                font-size: 10px;
+                vertical-alignment: center;
+            }
+        }
+
+        Rectangle { height: 1px; background: #161b22; }
+
+        if root.stats.length == 0 && !root.connected : Text {
+            text: "Connecting to server…";
+            color: #484f58;
+            font-size: 11px;
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            for s in root.stats : StatCard {
+                label: s.label;
+                value: s.value;
+                accent: s.accent;
+            }
+        }
+
+        Flickable {
+            vertical-stretch: 1;
+            viewport-height: charts.preferred-height;
+
+            charts := HorizontalLayout {
+                spacing: 10px;
+
+                VerticalLayout {
+                    spacing: 10px;
+                    horizontal-stretch: 1;
+                    // width 0 so content can't inflate it, row splits 50/50 by
+                    // stretch keeping both columns' plot width identical
+                    preferred-width: 0px;
+                    alignment: start;
+                    for s in root.series-left : LineGraph {
+                        title: s.title;
+                        value: s.value;
+                        commands: s.commands;
+                        accent: s.accent;
+                        y-top: s.y-top;
+                        y-mid: s.y-mid;
+                        last-norm: s.last-norm;
+                        resized(w, h) => { root.plot-resized(w, h); }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 10px;
+                    horizontal-stretch: 1;
+                    preferred-width: 0px;
+                    alignment: start;
+                    for s in root.series-right : LineGraph {
+                        title: s.title;
+                        value: s.value;
+                        commands: s.commands;
+                        accent: s.accent;
+                        y-top: s.y-top;
+                        y-mid: s.y-mid;
+                        last-norm: s.last-norm;
+                        resized(w, h) => { root.plot-resized(w, h); }
+                    }
+                }
+            }
+        }
+    }
+}

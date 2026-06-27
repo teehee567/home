@@ -1,6 +1,9 @@
 import { Dashboard } from "pages/dashboard.slint";
 import { GenshinPage } from "modules/genshin.slint";
 import { AppWatcherPage, WatchedAppData } from "modules/app_watcher.slint";
+import { MetricsPage, MetricStat, GraphData } from "modules/metrics.slint";
+
+export { MetricStat, GraphData }
 
 component NavItem inherits Rectangle {
     in property <string> label;
@@ -73,6 +76,13 @@ export component App inherits Window {
     in property <string> server-status: "Not connected";
     in property <bool> server-connected: false;
 
+    in property <[MetricStat]> metrics-stats: [];
+    in property <[GraphData]> metrics-left: [];
+    in property <[GraphData]> metrics-right: [];
+    in property <string> metrics-status: "Not connected";
+    in property <bool> metrics-connected: false;
+    callback metrics-resized(length, length);
+
     in property <[WatchedAppData]> watcher-apps: [];
     in-out property <int> watcher-selected: -1;
     callback watcher-add-app();
@@ -90,18 +100,19 @@ export component App inherits Window {
                 spacing: 0px;
 
                 NavItem { label: "Dashboard"; active: current-tab == 0; clicked => { current-tab = 0; } }
-                NavItem { label: "Genshin"; active: current-tab == 1; clicked => { current-tab = 1; } }
-                NavItem { label: "App Watcher"; active: current-tab == 2; clicked => { current-tab = 2; } }
-                NavItem { label: "Finance"; active: current-tab == 3; clicked => { current-tab = 3; } }
-                NavItem { label: "Star Rail"; active: current-tab == 4; clicked => { current-tab = 4; } }
-                NavItem { label: "Uni"; active: current-tab == 5; clicked => { current-tab = 5; } }
-                NavItem { label: "Nutrition"; active: current-tab == 6; clicked => { current-tab = 6; } }
-                NavItem { label: "Files"; active: current-tab == 7; clicked => { current-tab = 7; } }
+                NavItem { label: "Metrics"; active: current-tab == 1; clicked => { current-tab = 1; } }
+                NavItem { label: "Genshin"; active: current-tab == 2; clicked => { current-tab = 2; } }
+                NavItem { label: "App Watcher"; active: current-tab == 3; clicked => { current-tab = 3; } }
+                NavItem { label: "Finance"; active: current-tab == 4; clicked => { current-tab = 4; } }
+                NavItem { label: "Star Rail"; active: current-tab == 5; clicked => { current-tab = 5; } }
+                NavItem { label: "Uni"; active: current-tab == 6; clicked => { current-tab = 6; } }
+                NavItem { label: "Nutrition"; active: current-tab == 7; clicked => { current-tab = 7; } }
+                NavItem { label: "Files"; active: current-tab == 8; clicked => { current-tab = 8; } }
 
                 Rectangle { vertical-stretch: 1; }
 
                 Rectangle { height: 1px; background: #21262d; }
-                NavItem { label: "Settings"; active: current-tab == 8; clicked => { current-tab = 8; } }
+                NavItem { label: "Settings"; active: current-tab == 9; clicked => { current-tab = 9; } }
                 Rectangle { height: 4px; }
             }
         }
@@ -119,23 +130,31 @@ export component App inherits Window {
                 server-status: root.server-status;
                 server-connected: root.server-connected;
             }
-            if current-tab == 1 : GenshinPage {
+            if current-tab == 1 : MetricsPage {
+                stats: root.metrics-stats;
+                series-left: root.metrics-left;
+                series-right: root.metrics-right;
+                status: root.metrics-status;
+                connected: root.metrics-connected;
+                plot-resized(w, h) => { root.metrics-resized(w, h); }
+            }
+            if current-tab == 2 : GenshinPage {
                 fps-text: root.fps-text;
                 status-text: root.status-text;
                 running: root.running;
             }
-            if current-tab == 2 : AppWatcherPage {
+            if current-tab == 3 : AppWatcherPage {
                 apps: root.watcher-apps;
                 selected-index <=> root.watcher-selected;
                 add-app => { root.watcher-add-app(); }
                 remove-app(idx) => { root.watcher-remove-app(idx); }
             }
-            if current-tab == 3 : PlaceholderPage { title: "Finance"; }
-            if current-tab == 4 : PlaceholderPage { title: "Star Rail"; }
-            if current-tab == 5 : PlaceholderPage { title: "Uni"; }
-            if current-tab == 6 : PlaceholderPage { title: "Nutrition"; }
-            if current-tab == 7 : PlaceholderPage { title: "Files"; }
-            if current-tab == 8 : PlaceholderPage { title: "Settings"; }
+            if current-tab == 4 : PlaceholderPage { title: "Finance"; }
+            if current-tab == 5 : PlaceholderPage { title: "Star Rail"; }
+            if current-tab == 6 : PlaceholderPage { title: "Uni"; }
+            if current-tab == 7 : PlaceholderPage { title: "Nutrition"; }
+            if current-tab == 8 : PlaceholderPage { title: "Files"; }
+            if current-tab == 9 : PlaceholderPage { title: "Settings"; }
         }
     }
 }

@@ -1,91 +1,129 @@
-use std::{process, thread, time::Duration};
+use std::collections::VecDeque;
+use std::time::Duration;
+use std::{process, thread};
 
 use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tokio::time;
 
 use crate::modules::{Context, Module, ModuleError};
-use crate::net::NetStats;
+use crate::net::{NetStats, Telemetry};
 use crate::storage::NodeDeps;
 
-/// Resource usage of this node's own process.
+// 1s snapshots ~1h
+const HISTORY_CAP: usize = 3600;
+// recent rtt samples for jitter
+const RTT_WINDOW: usize = 64;
+
+/// this process resource usage
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ProcessMetrics {
-    /// CPU usage normalized to a single core, percent (0–100)
+    /// cpu percent, one core
     pub cpu: f32,
-    /// resident set size, bytes
+    /// rss bytes
     pub memory: u64,
-    /// virtual memory, bytes
+    /// virtual bytes
     pub virtual_memory: u64,
-    /// disk bytes read since the last sample
+    /// disk read since last sample
     pub disk_read: u64,
-    /// disk bytes written since the last sample
+    /// disk written since last sample
     pub disk_written: u64,
-    /// seconds the process has been running
+    /// process uptime secs
     pub uptime: u64,
 }
 
-/// Whole-host resource usage.
+/// whole host resource usage
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SystemMetrics {
-    /// global CPU usage across all cores, percent (0–100)
+    /// global cpu percent
     pub cpu: f32,
-    /// total physical memory, bytes
+    /// total physical bytes
     pub total_memory: u64,
-    /// used physical memory, bytes
+    /// used physical bytes
     pub used_memory: u64,
-    /// total swap, bytes
+    /// total swap bytes
     pub total_swap: u64,
-    /// used swap, bytes
+    /// used swap bytes
     pub used_swap: u64,
-    /// 1/5/15-minute load averages (zeros on platforms without it, e.g. Windows)
+    /// 1/5/15m load avg, zeros on windows
     pub load_avg: [f64; 3],
-    /// host uptime, seconds
+    /// host uptime secs
     pub uptime: u64,
 }
 
-/// Link quality across every live peer connection, from quinn's transport stats.
+/// link quality across live peers, from quinn stats
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct NetworkMetrics {
-    /// number of live peer connections
+    /// live peer count
     pub peers: u32,
-    /// mean round-trip time, milliseconds
+    /// mean rtt ms
     pub rtt_ms: f64,
-    /// mean congestion window, bytes
+    /// rtt jitter stddev ms
+    pub jitter_ms: f64,
+    /// mean cwnd bytes
     pub cwnd: u64,
-    /// smallest current path MTU, bytes
+    /// smallest path mtu bytes
     pub mtu: u16,
-    /// packets sent (cumulative)
+    /// packets sent cumulative
     pub sent_packets: u64,
-    /// packets lost (cumulative)
+    /// packets lost cumulative
     pub lost_packets: u64,
-    /// packet loss, percent (lost / sent)
+    /// packet loss percent
     pub packet_loss: f64,
-    /// congestion events (cumulative)
+    /// congestion events cumulative
     pub congestion_events: u64,
-    /// black holes detected (cumulative)
+    /// black holes cumulative
     pub black_holes: u64,
-    /// bytes sent since the last sample (≈ upload bytes/sec)
+    /// upload bytes/sec
     pub tx_bps: u64,
-    /// bytes received since the last sample (≈ download bytes/sec)
+    /// download bytes/sec
     pub rx_bps: u64,
-    /// bytes sent (cumulative)
+    /// bytes sent cumulative
     pub tx_bytes: u64,
-    /// bytes received (cumulative)
+    /// bytes received cumulative
     pub rx_bytes: u64,
 }
 
-/// Everything a dev environment wants at a glance: process, host, and link.
+/// server request traffic, reliability, latency
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct RequestMetrics {
+    /// requests cumulative
+    pub requests: u64,
+    /// requests/sec
+    pub req_per_sec: f64,
+    /// error frames cumulative
+    pub errors: u64,
+    /// error rate percent
+    pub error_rate: f64,
+    /// request bytes cumulative
+    pub bytes_in: u64,
+    /// response bytes cumulative
+    pub bytes_out: u64,
+    /// request bytes/sec
+    pub in_bps: u64,
+    /// response bytes/sec
+    pub out_bps: u64,
+    /// proc time ms p50
+    pub proc_p50_ms: f64,
+    /// proc time ms p95
+    pub proc_p95_ms: f64,
+    /// proc time ms p99
+    pub proc_p99_ms: f64,
+}
+
+/// process, host, link, traffic at a glance
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Metrics {
     pub process: ProcessMetrics,
     pub system: SystemMetrics,
     pub network: NetworkMetrics,
+    pub request: RequestMetrics,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum MetricsRequest {
-    GetMetrics,
+    // history downsampled to at most max_points, oldest -> newest
+    GetHistory { max_points: u32 },
 }
 
 pub struct MetricsModule {
@@ -93,9 +131,16 @@ pub struct MetricsModule {
     pid: Pid,
     num_cpus: f32,
     net: NetStats,
-    // cumulative byte counters from the previous tick, for throughput deltas
+    telemetry: Telemetry,
+    history: VecDeque<Metrics>,
+    rtt_ring: VecDeque<f64>,
+    // previous-tick counters, for per-second deltas
     prev_tx: u64,
     prev_rx: u64,
+    prev_requests: u64,
+    prev_errors: u64,
+    prev_bytes_in: u64,
+    prev_bytes_out: u64,
     current: Metrics,
 }
 
@@ -103,7 +148,7 @@ impl Module for MetricsModule {
     const NAME: &str = "metrics";
 
     type Request = MetricsRequest;
-    type Response = Metrics;
+    type Response = Vec<Metrics>;
     type Event = Metrics;
 
     async fn new(deps: &NodeDeps) -> Result<Self, ModuleError> {
@@ -117,8 +162,15 @@ impl Module for MetricsModule {
             pid: Pid::from_u32(process::id()),
             num_cpus,
             net: deps.net_stats(),
+            telemetry: deps.telemetry(),
+            history: VecDeque::with_capacity(HISTORY_CAP),
+            rtt_ring: VecDeque::with_capacity(RTT_WINDOW),
             prev_tx: 0,
             prev_rx: 0,
+            prev_requests: 0,
+            prev_errors: 0,
+            prev_bytes_in: 0,
+            prev_bytes_out: 0,
             current: Metrics::default(),
         })
     }
@@ -129,12 +181,18 @@ impl Module for MetricsModule {
             tokio::select! {
                 msg = ctx.recv() => match msg {
                     Some(req) => match req.payload {
-                        MetricsRequest::GetMetrics => req.reply(Ok(self.current)),
+                        MetricsRequest::GetHistory { max_points } => {
+                            req.reply(Ok(self.history_downsampled(max_points)));
+                        }
                     },
                     None => break,
                 },
                 _ = tick.tick() => {
                     self.current = self.sample();
+                    if self.history.len() == HISTORY_CAP {
+                        self.history.pop_front();
+                    }
+                    self.history.push_back(self.current);
                     ctx.publish(self.current);
                 }
             }
@@ -178,19 +236,37 @@ impl MetricsModule {
             uptime: System::uptime(),
         };
 
+        let network = self.sample_network();
+        let request = self.sample_requests();
+
+        Metrics { process, system, network, request }
+    }
+
+    fn sample_network(&mut self) -> NetworkMetrics {
         let ns = self.net.sample();
         let tx_bps = ns.tx_bytes.saturating_sub(self.prev_tx);
         let rx_bps = ns.rx_bytes.saturating_sub(self.prev_rx);
         self.prev_tx = ns.tx_bytes;
         self.prev_rx = ns.rx_bytes;
+
+        let rtt_ms = (ns.rtt_ms * 100.0).round() / 100.0;
+        if ns.peers > 0 {
+            if self.rtt_ring.len() == RTT_WINDOW {
+                self.rtt_ring.pop_front();
+            }
+            self.rtt_ring.push_back(rtt_ms);
+        }
+
         let packet_loss = if ns.sent_packets > 0 {
             (ns.lost_packets as f64 / ns.sent_packets as f64 * 10_000.0).round() / 100.0
         } else {
             0.0
         };
-        let network = NetworkMetrics {
+
+        NetworkMetrics {
             peers: ns.peers,
-            rtt_ms: (ns.rtt_ms * 100.0).round() / 100.0,
+            rtt_ms,
+            jitter_ms: self.jitter(),
             cwnd: ns.cwnd,
             mtu: ns.mtu,
             sent_packets: ns.sent_packets,
@@ -202,8 +278,68 @@ impl MetricsModule {
             rx_bps,
             tx_bytes: ns.tx_bytes,
             rx_bytes: ns.rx_bytes,
+        }
+    }
+
+    fn sample_requests(&mut self) -> RequestMetrics {
+        let s = self.telemetry.snapshot();
+        let req_delta = s.requests.saturating_sub(self.prev_requests);
+        let err_delta = s.errors.saturating_sub(self.prev_errors);
+        let in_bps = s.bytes_in.saturating_sub(self.prev_bytes_in);
+        let out_bps = s.bytes_out.saturating_sub(self.prev_bytes_out);
+        self.prev_requests = s.requests;
+        self.prev_errors = s.errors;
+        self.prev_bytes_in = s.bytes_in;
+        self.prev_bytes_out = s.bytes_out;
+
+        let error_rate = if req_delta > 0 {
+            (err_delta as f64 / req_delta as f64 * 10_000.0).round() / 100.0
+        } else {
+            0.0
         };
 
-        Metrics { process, system, network }
+        RequestMetrics {
+            requests: s.requests,
+            req_per_sec: req_delta as f64,
+            errors: s.errors,
+            error_rate,
+            bytes_in: s.bytes_in,
+            bytes_out: s.bytes_out,
+            in_bps,
+            out_bps,
+            proc_p50_ms: us_to_ms(s.p50_us),
+            proc_p95_ms: us_to_ms(s.p95_us),
+            proc_p99_ms: us_to_ms(s.p99_us),
+        }
     }
+
+    // stddev of recent rtt
+    fn jitter(&self) -> f64 {
+        let n = self.rtt_ring.len();
+        if n < 2 {
+            return 0.0;
+        }
+        let mean = self.rtt_ring.iter().sum::<f64>() / n as f64;
+        let var = self.rtt_ring.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64;
+        (var.sqrt() * 100.0).round() / 100.0
+    }
+
+    // stride down to at most max_points, always keep newest
+    fn history_downsampled(&self, max_points: u32) -> Vec<Metrics> {
+        let n = self.history.len();
+        let max = (max_points as usize).max(1);
+        if n <= max {
+            return self.history.iter().copied().collect();
+        }
+        let step = (n / max).max(1);
+        let mut out: Vec<Metrics> = self.history.iter().step_by(step).copied().collect();
+        if !(n - 1).is_multiple_of(step) {
+            out.push(*self.history.back().unwrap());
+        }
+        out
+    }
+}
+
+fn us_to_ms(us: u32) -> f64 {
+    (us as f64 / 10.0).round() / 100.0
 }

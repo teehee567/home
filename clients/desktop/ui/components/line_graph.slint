@@ -1,0 +1,167 @@
+// reusable time-series line graph. caller supplies the svg path in plot pixel
+// coords plus pre-formatted axis labels. no knowledge of what is plotted.
+export struct GraphData {
+    title: string,        // header left
+    value: string,        // header right, current value
+    commands: string,     // svg polyline in plot pixel coords
+    accent: color,
+    y-top: string,        // max gridline label
+    y-mid: string,        // mid gridline label
+    last-norm: float,     // 0 bottom .. 1 top, newest point
+}
+
+export component LineGraph inherits Rectangle {
+    in property <string> title;
+    in property <string> value;
+    in property <string> commands;
+    in property <color> accent: #58a6ff;
+    in property <string> y-top;
+    in property <string> y-mid;
+    in property <string> y-bot: "0";
+    in property <float> last-norm;
+    in property <string> x-start: "-3m";
+
+    // re-themable chrome
+    in property <color> card-background: #0d1117;
+    in property <color> card-border: #21262d;
+    in property <color> grid-color: #161b22;
+    in property <color> baseline-color: #1f2630;
+    in property <color> label-color: #484f58;
+    in property <color> title-color: #7d8590;
+
+    // reports inner plot pixel size so the path matches it. path is built in
+    // pixel coords and the viewbox bound 1:1 since slint fits viewbox uniformly.
+    // polled not changed-handler, changed width/height panics recursion detected.
+    callback resized(length, length);
+
+    height: 92px;
+    background: root.card-background;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.card-border;
+    clip: true;
+
+    poll := Timer {
+        interval: 250ms;
+        triggered => { root.resized(inner.width, inner.height); }
+    }
+
+    VerticalLayout {
+        padding: 8px;
+        spacing: 4px;
+
+        // header: title left, current value right
+        HorizontalLayout {
+            Text {
+                text: root.title;
+                color: root.title-color;
+                font-size: 9px;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+                overflow: elide;
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            Text {
+                text: root.value;
+                color: root.accent;
+                font-size: 10px;
+                font-weight: 700;
+                overflow: elide;
+            }
+        }
+
+        // body: y-axis gutter + plot
+        HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: 4px;
+
+            gutter := Rectangle {
+                width: 34px;
+
+                Text {
+                    x: 0;
+                    width: parent.width - 2px;
+                    y: 0;
+                    horizontal-alignment: right;
+                    text: root.y-top;
+                    color: root.label-color;
+                    font-size: 8px;
+                }
+                Text {
+                    x: 0;
+                    width: parent.width - 2px;
+                    y: (parent.height - self.height) / 2;
+                    horizontal-alignment: right;
+                    text: root.y-mid;
+                    color: root.label-color;
+                    font-size: 8px;
+                }
+                Text {
+                    x: 0;
+                    width: parent.width - 2px;
+                    y: parent.height - self.height;
+                    horizontal-alignment: right;
+                    text: root.y-bot;
+                    color: root.label-color;
+                    font-size: 8px;
+                }
+            }
+
+            inner := Rectangle {
+                horizontal-stretch: 1;
+                clip: true;
+
+                // gridlines, k=0 top .. 4 baseline
+                for k in [0, 1, 2, 3, 4] : Rectangle {
+                    x: 0;
+                    y: (inner.height - 1px) * k / 4;
+                    width: 100%;
+                    height: 1px;
+                    background: k == 4 ? root.baseline-color : root.grid-color;
+                }
+
+                Path {
+                    width: 100%;
+                    height: 100%;
+                    commands: root.commands;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: inner.width / 1px;
+                    viewbox-height: inner.height / 1px;
+                    stroke: root.accent;
+                    stroke-width: 1.5px;
+                    fill: transparent;
+                }
+
+                // newest-point marker, pinned right
+                if root.commands != "" : Rectangle {
+                    width: 4px;
+                    height: 4px;
+                    border-radius: 2px;
+                    background: root.accent;
+                    x: inner.width - self.width - 1px;
+                    y: (1.0 - root.last-norm) * inner.height - self.height / 2;
+                }
+            }
+        }
+
+        // x-axis labels
+        HorizontalLayout {
+            Text {
+                text: root.x-start;
+                color: root.label-color;
+                font-size: 8px;
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            Text {
+                text: "now";
+                color: root.label-color;
+                font-size: 8px;
+            }
+        }
+    }
+}

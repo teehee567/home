@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use sea_orm::{DatabaseConnection, DbErr};
 
 use super::store;
-use crate::net::NetStats;
+use crate::net::{NetStats, Telemetry};
 
 /// deps passed to each module
 pub struct NodeDeps {
@@ -11,6 +11,7 @@ pub struct NodeDeps {
     pub data_dir: PathBuf,
 
     net_stats: NetStats,
+    telemetry: Telemetry,
 }
 
 impl NodeDeps {
@@ -20,14 +21,24 @@ impl NodeDeps {
             .map_err(|e| DbErr::Custom(format!("create data dir {}: {e}", data_dir.display())))?;
         let db = store::open_db(data_dir.join("noob.db")).await?;
         super::schema::ensure_node_tables(&db).await?;
-        Ok(Self { db, data_dir, net_stats: NetStats::new() })
+        Ok(Self {
+            db,
+            data_dir,
+            net_stats: NetStats::new(),
+            telemetry: Telemetry::new(),
+        })
     }
 
     /// in memory db for tests
     pub async fn memory() -> Result<Self, DbErr> {
         let db = store::memory_db().await?;
         super::schema::ensure_node_tables(&db).await?;
-        Ok(Self { db, data_dir: std::env::temp_dir(), net_stats: NetStats::new() })
+        Ok(Self {
+            db,
+            data_dir: std::env::temp_dir(),
+            net_stats: NetStats::new(),
+            telemetry: Telemetry::new(),
+        })
     }
 
     /// clone pooled db handle
@@ -38,6 +49,11 @@ impl NodeDeps {
     /// handle to the live-connection registry; pass the same one to [`crate::net::Node::new`]
     pub fn net_stats(&self) -> NetStats {
         self.net_stats.clone()
+    }
+
+    /// telemetry collector, shared by dispatcher and metrics module
+    pub fn telemetry(&self) -> Telemetry {
+        self.telemetry.clone()
     }
 }
 
