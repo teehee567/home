@@ -1,9 +1,9 @@
 import { Dashboard } from "pages/dashboard.slint";
-import { GenshinPage, WishBannerStat } from "modules/genshin.slint";
+import { GenshinPage, WishStatCard, WishGraphData, WishBreakdown, WishPill } from "modules/genshin.slint";
 import { AppWatcherPage, WatchedAppData } from "modules/app_watcher.slint";
 import { MetricsPage, MetricStat, GraphData } from "modules/metrics.slint";
 
-export { MetricStat, GraphData, WishBannerStat }
+export { MetricStat, GraphData, WishStatCard, WishGraphData, WishBreakdown, WishPill }
 
 component NavItem inherits Rectangle {
     in property <string> label;
@@ -64,19 +64,45 @@ component PlaceholderPage inherits Rectangle {
 export component App inherits Window {
     title: "noob";
     icon: @image-url("../../../data/icons/larger_noob.png");
-    width: 880px;
-    height: 520px;
+    preferred-width: 880px;
+    preferred-height: 520px;
+    min-width: 700px;
+    min-height: 440px;
     background: #0d1117;
 
     in property <string> fps-text: "---";
     in property <string> status-text: "Genshin Impact not running";
     in property <bool> running: false;
 
-    in property <[WishBannerStat]> wish-banners: [];
-    in property <string> wish-status: "Open your in-game wish history, then Update.";
-    in property <bool> wish-busy: false;
-    callback genshin-export-wishes(bool);
-    callback genshin-export-file();
+    // genshin wishes
+    in property <[string]> gi-banner-names: [];
+    in property <int> gi-selected: 0;
+    in property <[WishStatCard]> gi-overview: [];
+    in property <WishGraphData> gi-graph;
+    in property <WishBreakdown> gi-breakdown;
+    in property <[WishPill]> gi-pills: [];
+    in property <string> gi-wish-status: "Open your in-game wish history, then Update.";
+    in property <bool> gi-wish-busy: false;
+    callback gi-update();
+    callback gi-full-refresh();
+    callback gi-export-file();
+    callback gi-select-banner(int);
+    callback gi-wish-resized(length, length);
+
+    // star rail warps
+    in property <[string]> hsr-banner-names: [];
+    in property <int> hsr-selected: 0;
+    in property <[WishStatCard]> hsr-overview: [];
+    in property <WishGraphData> hsr-graph;
+    in property <WishBreakdown> hsr-breakdown;
+    in property <[WishPill]> hsr-pills: [];
+    in property <string> hsr-wish-status: "Open your in-game warp history, then Update.";
+    in property <bool> hsr-wish-busy: false;
+    callback hsr-update();
+    callback hsr-full-refresh();
+    callback hsr-export-file();
+    callback hsr-select-banner(int);
+    callback hsr-wish-resized(length, length);
 
     in property <string> server-value: "---";
     in property <string> server-status: "Not connected";
@@ -148,11 +174,34 @@ export component App inherits Window {
                 fps-text: root.fps-text;
                 status-text: root.status-text;
                 running: root.running;
-                wish-banners: root.wish-banners;
-                wish-status: root.wish-status;
-                wish-busy: root.wish-busy;
-                export-wishes(full) => { root.genshin-export-wishes(full); }
-                export-file() => { root.genshin-export-file(); }
+
+                gi-banner-names: root.gi-banner-names;
+                gi-selected: root.gi-selected;
+                gi-overview: root.gi-overview;
+                gi-graph: root.gi-graph;
+                gi-breakdown: root.gi-breakdown;
+                gi-pills: root.gi-pills;
+                gi-status: root.gi-wish-status;
+                gi-busy: root.gi-wish-busy;
+                gi-update => { root.gi-update(); }
+                gi-full-refresh => { root.gi-full-refresh(); }
+                gi-export-file => { root.gi-export-file(); }
+                gi-select-banner(i) => { root.gi-select-banner(i); }
+                gi-resized(w, h) => { root.gi-wish-resized(w, h); }
+
+                hsr-banner-names: root.hsr-banner-names;
+                hsr-selected: root.hsr-selected;
+                hsr-overview: root.hsr-overview;
+                hsr-graph: root.hsr-graph;
+                hsr-breakdown: root.hsr-breakdown;
+                hsr-pills: root.hsr-pills;
+                hsr-status: root.hsr-wish-status;
+                hsr-busy: root.hsr-wish-busy;
+                hsr-update => { root.hsr-update(); }
+                hsr-full-refresh => { root.hsr-full-refresh(); }
+                hsr-export-file => { root.hsr-export-file(); }
+                hsr-select-banner(i) => { root.hsr-select-banner(i); }
+                hsr-resized(w, h) => { root.hsr-wish-resized(w, h); }
             }
             if current-tab == 3 : AppWatcherPage {
                 apps: root.watcher-apps;

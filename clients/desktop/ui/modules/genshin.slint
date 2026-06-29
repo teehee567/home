@@ -1,40 +1,6 @@
-export struct WishBannerStat {
-    name: string,
-    total: int,
-    pity: int,
-    five-star: int,
-    four-star: int,
-    avg-pity: string,
-}
+import { WishView, WishStatCard, WishGraphData, WishBreakdown, WishPill } from "wishes.slint";
 
-component WishButton inherits Rectangle {
-    in property <string> label;
-    in property <bool> enabled: true;
-    callback clicked;
-
-    height: 26px;
-    border-radius: 6px;
-    border-width: 1px;
-    border-color: root.enabled ? #30363d : #21262d;
-    background: root.enabled ? (ta.has-hover ? #1f2937 : #161b22) : #0d1117;
-
-    HorizontalLayout {
-        padding-left: 10px;
-        padding-right: 10px;
-        Text {
-            text: root.label;
-            color: root.enabled ? #c8a96e : #484f58;
-            font-size: 11px;
-            font-weight: 600;
-            vertical-alignment: center;
-        }
-    }
-
-    ta := TouchArea {
-        mouse-cursor: root.enabled ? pointer : default;
-        clicked => { if root.enabled { root.clicked(); } }
-    }
-}
+export { WishStatCard, WishGraphData, WishBreakdown, WishPill }
 
 export component GenshinFpsBlock inherits Rectangle {
     in property <string> fps-text: "---";
@@ -98,178 +64,197 @@ export component GenshinFpsBlock inherits Rectangle {
     }
 }
 
-export component GenshinPage inherits Rectangle {
-    in property <string> fps-text: "---";
-    in property <string> status-text: "Genshin Impact not running";
-    in property <bool> running: false;
+component SubTab inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked;
 
-    in property <[WishBannerStat]> wish-banners: [];
-    in property <string> wish-status: "Open your in-game wish history, then Update.";
-    in property <bool> wish-busy: false;
-    callback export-wishes(bool);
-    callback export-file();
+    height: 32px;
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        Text {
+            text: root.label;
+            color: root.active ? #e6edf3 : (ta.has-hover ? #b1bac4 : #7d8590);
+            font-size: 12px;
+            font-weight: root.active ? 600 : 400;
+            vertical-alignment: center;
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 2px;
+        height: 2px;
+        background: root.active ? #c8a96e : transparent;
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Dashboard sub-tab: live FPS + the (unfinished) resin plugin.
+component GenshinDashboard inherits Rectangle {
+    in property <string> fps-text;
+    in property <string> status-text;
+    in property <bool> running;
 
     VerticalLayout {
         padding: 20px;
-        spacing: 12px;
-
-        Text {
-            text: "Genshin Impact";
-            color: #e6edf3;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        Rectangle { height: 1px; background: #161b22; }
+        spacing: 16px;
 
         HorizontalLayout {
             spacing: 20px;
 
-            VerticalLayout {
-                spacing: 2px;
+            Rectangle {
                 horizontal-stretch: 1;
+                height: 110px;
+                background: #0d1117;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: #21262d;
+                VerticalLayout {
+                    padding: 16px;
+                    GenshinFpsBlock {
+                        fps-text: root.fps-text;
+                        status-text: root.status-text;
+                        running: root.running;
+                    }
+                }
+            }
 
-                HorizontalLayout {
-                    spacing: 4px;
-
+            Rectangle {
+                horizontal-stretch: 1;
+                height: 110px;
+                background: #0d1117;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: #21262d;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 2px;
                     Text {
-                        text: "FPS";
+                        text: "RESIN";
                         color: #c8a96e;
                         font-size: 10px;
                         font-weight: 600;
                         letter-spacing: 0.5px;
-                        vertical-alignment: center;
                     }
-
-                    VerticalLayout {
-                        alignment: center;
-                        Rectangle {
-                            width: 5px;
-                            height: 5px;
-                            border-radius: 3px;
-                            background: root.running ? #3fb950 : #484f58;
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    spacing: 6px;
-
                     Text {
-                        text: root.fps-text;
-                        color: root.running ? #e6edf3 : #21262d;
-                        font-size: 48px;
+                        text: "---/160";
+                        color: #21262d;
+                        font-size: 36px;
                         font-weight: 700;
                     }
-
                     Text {
-                        text: "fps";
-                        color: root.running ? #7d8590 : #21262d;
-                        font-size: 14px;
-                        vertical-alignment: bottom;
+                        text: "Plugin not connected";
+                        color: #484f58;
+                        font-size: 10px;
                     }
                 }
-
-                Text {
-                    text: root.status-text;
-                    color: #484f58;
-                    font-size: 10px;
-                }
             }
-
-            Rectangle { width: 1px; background: #161b22; }
-
-            VerticalLayout {
-                spacing: 2px;
-                horizontal-stretch: 1;
-
-                Text {
-                    text: "RESIN";
-                    color: #c8a96e;
-                    font-size: 10px;
-                    font-weight: 600;
-                    letter-spacing: 0.5px;
-                }
-
-                Text {
-                    text: "---/160";
-                    color: #21262d;
-                    font-size: 48px;
-                    font-weight: 700;
-                }
-
-                Text {
-                    text: "Not connected";
-                    color: #484f58;
-                    font-size: 10px;
-                }
-            }
-        }
-
-        Rectangle { height: 1px; background: #161b22; }
-
-        Text {
-            text: "WISHES";
-            color: #c8a96e;
-            font-size: 10px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        HorizontalLayout {
-            spacing: 8px;
-            alignment: start;
-
-            WishButton {
-                label: root.wish-busy ? "Updating…" : "Update";
-                enabled: !root.wish-busy;
-                clicked => { root.export-wishes(false); }
-            }
-            WishButton {
-                label: "Full Refresh";
-                enabled: !root.wish-busy;
-                clicked => { root.export-wishes(true); }
-            }
-            WishButton {
-                label: "Export UIGF…";
-                enabled: !root.wish-busy && root.wish-banners.length > 0;
-                clicked => { root.export-file(); }
-            }
-        }
-
-        Text {
-            text: root.wish-status;
-            color: #7d8590;
-            font-size: 10px;
-        }
-
-        // header row
-        if root.wish-banners.length > 0 : HorizontalLayout {
-            padding-top: 4px;
-            Text { text: "Banner"; color: #484f58; font-size: 10px; horizontal-stretch: 1; }
-            Text { text: "Pity"; color: #484f58; font-size: 10px; width: 50px; horizontal-alignment: right; }
-            Text { text: "5★"; color: #484f58; font-size: 10px; width: 40px; horizontal-alignment: right; }
-            Text { text: "4★"; color: #484f58; font-size: 10px; width: 40px; horizontal-alignment: right; }
-            Text { text: "Avg"; color: #484f58; font-size: 10px; width: 50px; horizontal-alignment: right; }
-            Text { text: "Total"; color: #484f58; font-size: 10px; width: 50px; horizontal-alignment: right; }
-        }
-
-        for b in root.wish-banners : HorizontalLayout {
-            Text {
-                text: b.name;
-                color: #e6edf3;
-                font-size: 11px;
-                horizontal-stretch: 1;
-                vertical-alignment: center;
-                overflow: elide;
-            }
-            Text { text: b.pity; color: #f0b72f; font-size: 11px; font-weight: 600; width: 50px; horizontal-alignment: right; vertical-alignment: center; }
-            Text { text: b.five-star; color: #c8a96e; font-size: 11px; width: 40px; horizontal-alignment: right; vertical-alignment: center; }
-            Text { text: b.four-star; color: #a371f7; font-size: 11px; width: 40px; horizontal-alignment: right; vertical-alignment: center; }
-            Text { text: b.avg-pity; color: #7d8590; font-size: 11px; width: 50px; horizontal-alignment: right; vertical-alignment: center; }
-            Text { text: b.total; color: #7d8590; font-size: 11px; width: 50px; horizontal-alignment: right; vertical-alignment: center; }
         }
 
         Rectangle { vertical-stretch: 1; }
+    }
+}
+
+export component GenshinPage inherits Rectangle {
+    // dashboard
+    in property <string> fps-text: "---";
+    in property <string> status-text: "Genshin Impact not running";
+    in property <bool> running: false;
+
+    // genshin wishes
+    in property <[string]> gi-banner-names: [];
+    in property <int> gi-selected: 0;
+    in property <[WishStatCard]> gi-overview: [];
+    in property <WishGraphData> gi-graph;
+    in property <WishBreakdown> gi-breakdown;
+    in property <[WishPill]> gi-pills: [];
+    in property <string> gi-status;
+    in property <bool> gi-busy: false;
+    callback gi-update();
+    callback gi-full-refresh();
+    callback gi-export-file();
+    callback gi-select-banner(int);
+    callback gi-resized(length, length);
+
+    // star rail warps
+    in property <[string]> hsr-banner-names: [];
+    in property <int> hsr-selected: 0;
+    in property <[WishStatCard]> hsr-overview: [];
+    in property <WishGraphData> hsr-graph;
+    in property <WishBreakdown> hsr-breakdown;
+    in property <[WishPill]> hsr-pills: [];
+    in property <string> hsr-status;
+    in property <bool> hsr-busy: false;
+    callback hsr-update();
+    callback hsr-full-refresh();
+    callback hsr-export-file();
+    callback hsr-select-banner(int);
+    callback hsr-resized(length, length);
+
+    property <int> subtab: 0;
+
+    VerticalLayout {
+        HorizontalLayout {
+            padding-left: 12px;
+            padding-top: 8px;
+            spacing: 4px;
+            alignment: start;
+
+            SubTab { label: "Dashboard"; active: root.subtab == 0; clicked => { root.subtab = 0; } }
+            SubTab { label: "Genshin Wishes"; active: root.subtab == 1; clicked => { root.subtab = 1; } }
+            SubTab { label: "HSR Warps"; active: root.subtab == 2; clicked => { root.subtab = 2; } }
+        }
+
+        Rectangle { height: 1px; background: #21262d; }
+
+        Rectangle {
+            vertical-stretch: 1;
+
+            if root.subtab == 0 : GenshinDashboard {
+                fps-text: root.fps-text;
+                status-text: root.status-text;
+                running: root.running;
+            }
+
+            if root.subtab == 1 : WishView {
+                title: "Genshin Impact — Wishes";
+                banner-names: root.gi-banner-names;
+                selected: root.gi-selected;
+                overview: root.gi-overview;
+                graph: root.gi-graph;
+                breakdown: root.gi-breakdown;
+                pills: root.gi-pills;
+                status: root.gi-status;
+                busy: root.gi-busy;
+                update => { root.gi-update(); }
+                full-refresh => { root.gi-full-refresh(); }
+                export-file => { root.gi-export-file(); }
+                select-banner(i) => { root.gi-select-banner(i); }
+                resized(w, h) => { root.gi-resized(w, h); }
+            }
+
+            if root.subtab == 2 : WishView {
+                title: "Honkai: Star Rail — Warps";
+                banner-names: root.hsr-banner-names;
+                selected: root.hsr-selected;
+                overview: root.hsr-overview;
+                graph: root.hsr-graph;
+                breakdown: root.hsr-breakdown;
+                pills: root.hsr-pills;
+                status: root.hsr-status;
+                busy: root.hsr-busy;
+                update => { root.hsr-update(); }
+                full-refresh => { root.hsr-full-refresh(); }
+                export-file => { root.hsr-export-file(); }
+                select-banner(i) => { root.hsr-select-banner(i); }
+                resized(w, h) => { root.hsr-resized(w, h); }
+            }
+        }
     }
 }

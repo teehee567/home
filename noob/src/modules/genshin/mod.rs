@@ -10,7 +10,10 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use sea_orm::sea_query::{OnConflict, TableCreateStatement};
-use sea_orm::{DatabaseConnection, EntityTrait, IntoActiveModel, Iterable, QueryOrder, Schema};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, Iterable, QueryFilter,
+    QueryOrder, Schema,
+};
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 use tokio::sync::mpsc;
@@ -21,7 +24,7 @@ use fps_etw::EtwSession;
 use crate::modules::{Context, Module, ModuleError, Request};
 use crate::storage::NodeDeps;
 use genshin_store::Model as WishRecord;
-use wish::{FetchResult, WishStats};
+use wish::{FetchResult, Game, GameProfile, WishStats};
 
 /// Process to watch for the live FPS counter.
 const GAME_PROCESS: &str = "GenshinImpact.exe";
@@ -70,31 +73,68 @@ impl ExportProgress {
 pub enum GenshinEvent {
     /// live FPS / running state (100ms tick)
     Fps(GenshinState),
-    /// wish-export progress + final result
-    Export(ExportProgress),
+    /// wish-export progress + final result, per game
+    Export { game: Game, progress: ExportProgress },
 }
 
 #[derive(Serialize, Deserialize)]
 pub enum GenshinRequest {
     GetState,
-    GetStats,
+    GetStats { game: Game },
     /// pull wish history; `full` re-fetches everything instead of just new pulls
-    ExportWishes { full: bool },
+    ExportWishes { game: Game, full: bool },
     /// write the stored history to `path` as a UIGF v4 document
-    ExportToFile { path: PathBuf },
+    ExportToFile { game: Game, path: PathBuf },
 }
 
 #[derive(Serialize, Deserialize)]
 pub enum GenshinResponse {
     State(GenshinState),
-    Stats(WishStats),
+    Stats { game: Game, stats: WishStats },
     Ack,
 }
 
 /// task → run-loop messages for the background fetch
 enum ExportMsg {
-    Progress(String),
-    Done(Result<FetchResult, String>),
+    Progress(Game, String),
+    Done(Game, Result<FetchResult, String>),
+}
+
+/// Stored wish history for one game, plus its in-flight export bookkeeping.
+struct GameData {
+    records: Vec<WishRecord>,
+    timezone: i32,
+    exporting: bool,
+}
+
+impl GameData {
+    /// highest stored id per banner, used to fetch only newer pulls
+    fn last_ids(&self) -> HashMap<String, String> {
+        let mut highest: HashMap<String, String> = HashMap::new();
+        for r in &self.records {
+            let entry = highest.entry(r.gacha_type.clone()).or_default();
+            if r.id > *entry {
+                *entry = r.id.clone();
+            }
+        }
+        highest
+    }
+
+    /// add fetched rows we don't already hold, keeping the list in id order
+    fn merge_records(&mut self, fetched: Vec<WishRecord>) {
+        let known: HashSet<&String> = self.records.iter().map(|r| &r.id).collect();
+        let new: Vec<WishRecord> = fetched.into_iter().filter(|r| !known.contains(&r.id)).collect();
+        self.records.extend(new);
+        self.records.sort_by(|a, b| a.id.cmp(&b.id));
+    }
+}
+
+/// shared exporter profile for a game
+fn profile_for(game: Game) -> &'static GameProfile {
+    match game {
+        Game::Genshin => &wish::GENSHIN,
+        Game::StarRail => &wish::STAR_RAIL,
+    }
 }
 
 pub struct GenshinModule {
@@ -104,9 +144,8 @@ pub struct GenshinModule {
     scan_counter: u32,
 
     db: DatabaseConnection,
-    records: Vec<WishRecord>,
-    timezone: i32,
-    exporting: bool,
+    genshin: GameData,
+    star_rail: GameData,
     result_tx: Option<mpsc::UnboundedSender<ExportMsg>>,
 }
 
@@ -123,19 +162,27 @@ impl Module for GenshinModule {
 
     async fn new(deps: &NodeDeps) -> Result<Self, ModuleError> {
         let db = deps.db();
-        let records = genshin_store::Entity::find()
-            .order_by_asc(genshin_store::Column::Id)
-            .all(&db)
-            .await?;
+        let load = |game: Game| {
+            let db = db.clone();
+            async move {
+                genshin_store::Entity::find()
+                    .filter(genshin_store::Column::Game.eq(game.tag()))
+                    .order_by_asc(genshin_store::Column::Id)
+                    .all(&db)
+                    .await
+            }
+        };
+        let genshin = GameData { records: load(Game::Genshin).await?, timezone: 8, exporting: false };
+        let star_rail =
+            GameData { records: load(Game::StarRail).await?, timezone: 8, exporting: false };
         Ok(Self {
             current: GenshinState { fps: None, running: false },
             tracked_pid: None,
             etw: None,
             scan_counter: 0,
             db,
-            records,
-            timezone: 8,
-            exporting: false,
+            genshin,
+            star_rail,
             result_tx: None,
         })
     }
@@ -172,91 +219,93 @@ impl GenshinModule {
             GenshinRequest::GetState => {
                 req.reply(Ok(GenshinResponse::State(self.current.clone())));
             }
-            GenshinRequest::GetStats => {
-                req.reply(Ok(GenshinResponse::Stats(wish::compute_stats(&self.records))));
+            &GenshinRequest::GetStats { game } => {
+                let stats = wish::compute_stats(profile_for(game), &self.game(game).records);
+                req.reply(Ok(GenshinResponse::Stats { game, stats }));
             }
-            GenshinRequest::ExportToFile { path } => {
-                let resp = self.write_uigf(path).map(|()| GenshinResponse::Ack);
+            GenshinRequest::ExportToFile { game, path } => {
+                let resp = self.write_uigf(*game, path).map(|()| GenshinResponse::Ack);
                 req.reply(resp);
             }
-            GenshinRequest::ExportWishes { full } => {
-                self.start_export(*full, ctx);
+            &GenshinRequest::ExportWishes { game, full } => {
+                self.start_export(game, full, ctx);
                 req.reply(Ok(GenshinResponse::Ack));
             }
         }
     }
 
-    /// Kick off a background fetch unless one is already running. The fetch runs
-    /// off the actor loop and reports back over `result_tx`; persistence happens
-    /// in `handle_export_msg` when the `Done` message arrives.
-    fn start_export(&mut self, full: bool, ctx: &Context<Self>) {
-        if self.exporting {
+    fn game(&self, game: Game) -> &GameData {
+        match game {
+            Game::Genshin => &self.genshin,
+            Game::StarRail => &self.star_rail,
+        }
+    }
+
+    fn game_mut(&mut self, game: Game) -> &mut GameData {
+        match game {
+            Game::Genshin => &mut self.genshin,
+            Game::StarRail => &mut self.star_rail,
+        }
+    }
+
+    /// Kick off a background fetch unless one is already running for this game.
+    /// The fetch runs off the actor loop and reports back over `result_tx`;
+    /// persistence happens in `handle_export_msg` when the `Done` message arrives.
+    fn start_export(&mut self, game: Game, full: bool, ctx: &Context<Self>) {
+        let data = self.game_mut(game);
+        if data.exporting {
             return;
         }
-        self.exporting = true;
-        ctx.publish(GenshinEvent::Export(ExportProgress::running("starting export")));
+        data.exporting = true;
+        let last_ids = if full { HashMap::new() } else { data.last_ids() };
+        ctx.publish(GenshinEvent::Export { game, progress: ExportProgress::running("starting export") });
 
         let tx = self.result_tx.clone().expect("result channel set in run()");
-        let last_ids = if full { HashMap::new() } else { self.last_ids() };
         tokio::spawn(async move {
             let send = |m: String| {
-                let _ = tx.send(ExportMsg::Progress(m));
+                let _ = tx.send(ExportMsg::Progress(game, m));
             };
-            let result = run_export(last_ids, &send).await.map_err(|e| e.to_string());
-            let _ = tx.send(ExportMsg::Done(result));
+            let result = run_export(game, last_ids, &send).await.map_err(|e| e.to_string());
+            let _ = tx.send(ExportMsg::Done(game, result));
         });
     }
 
     async fn handle_export_msg(&mut self, msg: ExportMsg, ctx: &Context<Self>) {
-        let progress = match msg {
-            ExportMsg::Progress(message) => ExportProgress::running(message),
+        let (game, progress) = match msg {
+            ExportMsg::Progress(game, message) => (game, ExportProgress::running(message)),
 
-            ExportMsg::Done(Ok(result)) => {
-                self.exporting = false;
-                self.timezone = result.timezone;
+            ExportMsg::Done(game, Ok(result)) => {
                 let imported = result.records.len();
-                match persist(&self.db, &result.records).await {
+                let progress = match persist(&self.db, &result.records).await {
                     Ok(()) => {
-                        self.merge_records(result.records);
-                        let stats = wish::compute_stats(&self.records);
+                        let data = self.game_mut(game);
+                        data.exporting = false;
+                        data.timezone = result.timezone;
+                        data.merge_records(result.records);
+                        let stats = wish::compute_stats(profile_for(game), &data.records);
                         ExportProgress::success(format!("imported {imported} new pull(s)"), stats)
                     }
-                    Err(e) => ExportProgress::failure(format!("save failed: {e}")),
-                }
+                    Err(e) => {
+                        self.game_mut(game).exporting = false;
+                        ExportProgress::failure(format!("save failed: {e}"))
+                    }
+                };
+                (game, progress)
             }
 
-            ExportMsg::Done(Err(e)) => {
-                self.exporting = false;
-                ExportProgress::failure(e)
+            ExportMsg::Done(game, Err(e)) => {
+                self.game_mut(game).exporting = false;
+                (game, ExportProgress::failure(e))
             }
         };
-        ctx.publish(GenshinEvent::Export(progress));
+        ctx.publish(GenshinEvent::Export { game, progress });
     }
 
-    /// highest stored id per banner, used to fetch only newer pulls
-    fn last_ids(&self) -> HashMap<String, String> {
-        let mut highest: HashMap<String, String> = HashMap::new();
-        for r in &self.records {
-            let entry = highest.entry(r.gacha_type.clone()).or_default();
-            if r.id > *entry {
-                *entry = r.id.clone();
-            }
-        }
-        highest
-    }
-
-    /// add fetched rows we don't already hold, keeping the list in id order
-    fn merge_records(&mut self, fetched: Vec<WishRecord>) {
-        let known: HashSet<&String> = self.records.iter().map(|r| &r.id).collect();
-        let new: Vec<WishRecord> = fetched.into_iter().filter(|r| !known.contains(&r.id)).collect();
-        self.records.extend(new);
-        self.records.sort_by(|a, b| a.id.cmp(&b.id));
-    }
-
-    fn write_uigf(&self, path: &Path) -> Result<(), ModuleError> {
-        let uid = self.records.first().map(|r| r.uid.clone()).unwrap_or_default();
-        let lang = self.records.first().map(|r| r.lang.clone()).unwrap_or_default();
-        let doc = wish::to_uigf_v4(&self.records, &uid, &lang, self.timezone);
+    fn write_uigf(&self, game: Game, path: &Path) -> Result<(), ModuleError> {
+        let data = self.game(game);
+        let uid = data.records.first().map(|r| r.uid.clone()).unwrap_or_default();
+        let lang = data.records.first().map(|r| r.lang.clone()).unwrap_or_default();
+        let doc = wish::to_uigf_v4(profile_for(game), &data.records, &uid, &lang, data.timezone);
         let text =
             serde_json::to_string_pretty(&doc).map_err(|e| ModuleError::Other(e.to_string()))?;
         std::fs::write(path, text).map_err(|e| ModuleError::Other(e.to_string()))?;
@@ -316,21 +365,23 @@ impl GenshinModule {
 /// run the whole fetch off the actor loop (network only; persistence happens
 /// back in the run loop on `ExportMsg::Done`).
 async fn run_export(
+    game: Game,
     last_ids: HashMap<String, String>,
     progress: &(dyn Fn(String) + Send + Sync),
 ) -> Result<FetchResult, wish::FetchError> {
-    let url = wish::find_url().ok_or(wish::FetchError::NoUrl)?;
-    let (domain, query) = wish::clean_query(&url).ok_or(wish::FetchError::NoUrl)?;
+    let profile = profile_for(game);
+    let url = wish::find_url(profile).ok_or(wish::FetchError::NoUrl)?;
+    let (endpoint, query) = wish::clean_query(profile, &url).ok_or(wish::FetchError::NoUrl)?;
     let client = reqwest::Client::new();
-    wish::fetch_all(&client, &domain, &query, &last_ids, progress).await
+    wish::fetch_all(&client, profile, &endpoint, &query, &last_ids, progress).await
 }
 
 /// upsert fetched rows by primary key, chunked to stay under SQLite's bind limit
 async fn persist(db: &DatabaseConnection, records: &[WishRecord]) -> Result<(), ModuleError> {
     use genshin_store::Column as C;
     // on a duplicate id, refresh every column except the primary key
-    let conflict = OnConflict::column(C::Id)
-        .update_columns(C::iter().filter(|c| !matches!(c, C::Id)))
+    let conflict = OnConflict::columns([C::Game, C::Id])
+        .update_columns(C::iter().filter(|c| !matches!(c, C::Id | C::Game)))
         .to_owned();
     for chunk in records.chunks(DB_CHUNK) {
         let models = chunk.iter().cloned().map(IntoActiveModel::into_active_model);

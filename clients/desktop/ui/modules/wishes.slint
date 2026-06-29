@@ -1,0 +1,531 @@
+// Per-game wish/warp analytics view: overview cards, a monthly multi-series
+// graph (3★/4★/5★), a banner breakdown table and a 5★ pity pill grid. Rust
+// computes everything (paths in plot-pixel coords, formatted values) and feeds
+// these structs; this file is pure presentation.
+
+export struct WishStatCard {
+    label: string,
+    value: string,
+    sub: string,
+    accent: color,
+}
+
+// svg polylines (line) + closed polygons (fill) for each rarity, in plot pixel
+// coords. axis labels pre-formatted. x0..x4 are evenly-spaced month labels.
+export struct WishGraphData {
+    three-line: string,
+    three-fill: string,
+    four-line: string,
+    four-fill: string,
+    five-line: string,
+    five-fill: string,
+    y-top: string,
+    y-mid: string,
+    x0: string,
+    x1: string,
+    x2: string,
+    x3: string,
+    x4: string,
+    has-data: bool,
+}
+
+export struct WishBreakdown {
+    five-total: string,
+    five-percent: string,
+    five-pity: string,
+    five-win-total: string,
+    five-win-percent: string,
+    four-total: string,
+    four-percent: string,
+    four-pity: string,
+    four-char-total: string,
+    four-char-percent: string,
+    four-weapon-total: string,
+    four-weapon-percent: string,
+    four-win-total: string,
+    four-win-percent: string,
+}
+
+export struct WishPill {
+    name: string,
+    pity: string,
+    color: color,    // pity-number colour
+    featured: bool,  // won the 50:50 → gold border
+}
+
+// rarity accents, shared by graph + legend
+global Rarity {
+    out property <color> three: #58a6ff;
+    out property <color> four: #bc8cff;
+    out property <color> five: #d29922;
+}
+
+component WishButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    height: 26px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.enabled ? #30363d : #21262d;
+    background: root.enabled ? (ta.has-hover ? #1f2937 : #161b22) : #0d1117;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        Text {
+            text: root.label;
+            color: root.enabled ? #c8a96e : #484f58;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { if root.enabled { root.clicked(); } }
+    }
+}
+
+component StatCard inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <string> sub;
+    in property <color> accent: #58a6ff;
+
+    horizontal-stretch: 1;
+    height: 60px;
+    background: #161b22;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: #21262d;
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 2px;
+
+        Text {
+            text: root.label;
+            color: #7d8590;
+            font-size: 10px;
+            font-weight: 600;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.value;
+            color: root.accent;
+            font-size: 22px;
+            font-weight: 700;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.sub;
+            color: #484f58;
+            font-size: 9px;
+            overflow: elide;
+        }
+    }
+}
+
+component LegendDot inherits HorizontalLayout {
+    in property <string> label;
+    in property <color> color;
+    spacing: 4px;
+
+    VerticalLayout {
+        alignment: center;
+        Rectangle {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            background: root.color;
+        }
+    }
+    Text {
+        text: root.label;
+        color: #7d8590;
+        font-size: 9px;
+        vertical-alignment: center;
+    }
+}
+
+component WishMultiGraph inherits Rectangle {
+    in property <WishGraphData> graph;
+    // reports inner plot pixel size so rust can size the paths 1:1 with the
+    // viewbox. polled (a changed-handler on width/height panics recursion).
+    callback resized(length, length);
+
+    height: 210px;
+    background: #0d1117;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: #21262d;
+    clip: true;
+
+    poll := Timer {
+        interval: 250ms;
+        triggered => { root.resized(plot.width, plot.height); }
+    }
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 6px;
+
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: start;
+            LegendDot { label: "3★"; color: Rarity.three; }
+            LegendDot { label: "4★"; color: Rarity.four; }
+            LegendDot { label: "5★"; color: Rarity.five; }
+        }
+
+        HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: 4px;
+
+            gutter := Rectangle {
+                width: 34px;
+                Text {
+                    x: 0; width: parent.width - 2px; y: 0;
+                    horizontal-alignment: right;
+                    text: root.graph.y-top;
+                    color: #484f58;
+                    font-size: 8px;
+                }
+                Text {
+                    x: 0; width: parent.width - 2px;
+                    y: (parent.height - self.height) / 2;
+                    horizontal-alignment: right;
+                    text: root.graph.y-mid;
+                    color: #484f58;
+                    font-size: 8px;
+                }
+                Text {
+                    x: 0; width: parent.width - 2px;
+                    y: parent.height - self.height;
+                    horizontal-alignment: right;
+                    text: "0";
+                    color: #484f58;
+                    font-size: 8px;
+                }
+            }
+
+            plot := Rectangle {
+                horizontal-stretch: 1;
+                clip: true;
+
+                for k in [0, 1, 2, 3, 4] : Rectangle {
+                    x: 0;
+                    y: (plot.height - 1px) * k / 4;
+                    width: 100%;
+                    height: 1px;
+                    background: k == 4 ? #1f2630 : #161b22;
+                }
+
+                if !root.graph.has-data : Text {
+                    text: "No data — press Update";
+                    color: #484f58;
+                    font-size: 11px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                }
+
+                // fills first (under the strokes), then the lines
+                three-fill := Path {
+                    width: 100%; height: 100%;
+                    viewbox-x: 0; viewbox-y: 0;
+                    viewbox-width: plot.width / 1px; viewbox-height: plot.height / 1px;
+                    commands: root.graph.three-fill;
+                    fill: #58a6ff2e; stroke: transparent;
+                }
+                four-fill := Path {
+                    width: 100%; height: 100%;
+                    viewbox-x: 0; viewbox-y: 0;
+                    viewbox-width: plot.width / 1px; viewbox-height: plot.height / 1px;
+                    commands: root.graph.four-fill;
+                    fill: #bc8cff2e; stroke: transparent;
+                }
+                five-fill := Path {
+                    width: 100%; height: 100%;
+                    viewbox-x: 0; viewbox-y: 0;
+                    viewbox-width: plot.width / 1px; viewbox-height: plot.height / 1px;
+                    commands: root.graph.five-fill;
+                    fill: #d2992233; stroke: transparent;
+                }
+                three-line := Path {
+                    width: 100%; height: 100%;
+                    viewbox-x: 0; viewbox-y: 0;
+                    viewbox-width: plot.width / 1px; viewbox-height: plot.height / 1px;
+                    commands: root.graph.three-line;
+                    stroke: Rarity.three; stroke-width: 1.5px; fill: transparent;
+                }
+                four-line := Path {
+                    width: 100%; height: 100%;
+                    viewbox-x: 0; viewbox-y: 0;
+                    viewbox-width: plot.width / 1px; viewbox-height: plot.height / 1px;
+                    commands: root.graph.four-line;
+                    stroke: Rarity.four; stroke-width: 1.5px; fill: transparent;
+                }
+                five-line := Path {
+                    width: 100%; height: 100%;
+                    viewbox-x: 0; viewbox-y: 0;
+                    viewbox-width: plot.width / 1px; viewbox-height: plot.height / 1px;
+                    commands: root.graph.five-line;
+                    stroke: Rarity.five; stroke-width: 1.5px; fill: transparent;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            Rectangle { width: 38px; }
+            Text { text: root.graph.x0; color: #484f58; font-size: 8px; horizontal-stretch: 1; horizontal-alignment: left; }
+            Text { text: root.graph.x1; color: #484f58; font-size: 8px; horizontal-stretch: 1; horizontal-alignment: center; }
+            Text { text: root.graph.x2; color: #484f58; font-size: 8px; horizontal-stretch: 1; horizontal-alignment: center; }
+            Text { text: root.graph.x3; color: #484f58; font-size: 8px; horizontal-stretch: 1; horizontal-alignment: center; }
+            Text { text: root.graph.x4; color: #484f58; font-size: 8px; horizontal-stretch: 1; horizontal-alignment: right; }
+        }
+    }
+}
+
+component BreakdownRow inherits Rectangle {
+    in property <string> label;
+    in property <string> total;
+    in property <string> percent;
+    in property <string> pity;
+    in property <color> accent;
+    in property <bool> indent: false;
+
+    height: 22px;
+
+    HorizontalLayout {
+        padding-left: root.indent ? 16px : 0px;
+        spacing: 4px;
+
+        Text {
+            text: (root.indent ? "└ " : "") + root.label;
+            color: root.accent;
+            font-size: root.indent ? 10px : 11px;
+            font-weight: root.indent ? 500 : 700;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Text { text: root.total; color: root.accent; font-size: 11px; font-weight: 600; width: 56px; horizontal-alignment: right; vertical-alignment: center; }
+        Text { text: root.percent; color: root.accent; font-size: 11px; width: 66px; horizontal-alignment: right; vertical-alignment: center; }
+        Text { text: root.pity; color: #7d8590; font-size: 11px; width: 56px; horizontal-alignment: right; vertical-alignment: center; }
+    }
+}
+
+export component WishView inherits Rectangle {
+    in property <string> title;
+    in property <[string]> banner-names: [];
+    in property <int> selected: 0;
+    in property <[WishStatCard]> overview: [];
+    in property <WishGraphData> graph;
+    in property <WishBreakdown> breakdown;
+    in property <[WishPill]> pills: [];
+    in property <string> status;
+    in property <bool> busy: false;
+
+    callback update();
+    callback full-refresh();
+    callback export-file();
+    callback select-banner(int);
+    callback resized(length, length);
+
+    Flickable {
+        viewport-height: content.preferred-height;
+
+        content := VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+
+            // header: title + actions
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: root.title;
+                    color: #e6edf3;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                WishButton {
+                    label: root.busy ? "Updating…" : "Update";
+                    enabled: !root.busy;
+                    clicked => { root.update(); }
+                }
+                WishButton {
+                    label: "Full Refresh";
+                    enabled: !root.busy;
+                    clicked => { root.full-refresh(); }
+                }
+                WishButton {
+                    label: "Export UIGF…";
+                    enabled: !root.busy && root.banner-names.length > 0;
+                    clicked => { root.export-file(); }
+                }
+            }
+
+            Text {
+                text: root.status;
+                color: #7d8590;
+                font-size: 10px;
+            }
+
+            // banner selector
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+                for name[idx] in root.banner-names : Rectangle {
+                    height: 26px;
+                    border-radius: 13px;
+                    border-width: 1px;
+                    border-color: root.selected == idx ? #c8a96e : #30363d;
+                    background: root.selected == idx ? #2a2419 : (tab-ta.has-hover ? #161b22 : transparent);
+
+                    tab-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.select-banner(idx); }
+                    }
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        Text {
+                            text: name;
+                            color: root.selected == idx ? #f0d9a8 : #7d8590;
+                            font-size: 10px;
+                            font-weight: root.selected == idx ? 600 : 400;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+
+            // overview cards
+            HorizontalLayout {
+                spacing: 8px;
+                for c in root.overview : StatCard {
+                    label: c.label;
+                    value: c.value;
+                    sub: c.sub;
+                    accent: c.accent;
+                }
+            }
+
+            WishMultiGraph {
+                graph: root.graph;
+                resized(w, h) => { root.resized(w, h); }
+            }
+
+            // breakdown table
+            Rectangle {
+                background: #0d1117;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: #21262d;
+
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 2px;
+
+                    HorizontalLayout {
+                        spacing: 4px;
+                        Text { text: "Breakdown"; color: #e6edf3; font-size: 11px; font-weight: 700; horizontal-stretch: 1; }
+                        Text { text: "Total"; color: #484f58; font-size: 9px; width: 56px; horizontal-alignment: right; }
+                        Text { text: "Percent"; color: #484f58; font-size: 9px; width: 66px; horizontal-alignment: right; }
+                        Text { text: "Pity AVG"; color: #484f58; font-size: 9px; width: 56px; horizontal-alignment: right; }
+                    }
+
+                    Rectangle { height: 1px; background: #161b22; }
+
+                    BreakdownRow {
+                        label: "5★"; accent: Rarity.five;
+                        total: root.breakdown.five-total;
+                        percent: root.breakdown.five-percent;
+                        pity: root.breakdown.five-pity;
+                    }
+                    BreakdownRow {
+                        label: "Win 50:50"; accent: #d29922; indent: true;
+                        total: root.breakdown.five-win-total;
+                        percent: root.breakdown.five-win-percent;
+                    }
+                    BreakdownRow {
+                        label: "4★"; accent: Rarity.four;
+                        total: root.breakdown.four-total;
+                        percent: root.breakdown.four-percent;
+                        pity: root.breakdown.four-pity;
+                    }
+                    BreakdownRow {
+                        label: "Character"; accent: #a371f7; indent: true;
+                        total: root.breakdown.four-char-total;
+                        percent: root.breakdown.four-char-percent;
+                    }
+                    BreakdownRow {
+                        label: "Weapon"; accent: #a371f7; indent: true;
+                        total: root.breakdown.four-weapon-total;
+                        percent: root.breakdown.four-weapon-percent;
+                    }
+                    BreakdownRow {
+                        label: "Win 50:50"; accent: #a371f7; indent: true;
+                        total: root.breakdown.four-win-total;
+                        percent: root.breakdown.four-win-percent;
+                    }
+                }
+            }
+
+            // 5★ pity history pill grid
+            Text {
+                text: "5★ History";
+                color: #c8a96e;
+                font-size: 10px;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+            }
+
+            grid := Rectangle {
+                property <int> cols: max(1, Math.floor(self.width / 138px));
+                height: Math.ceil(root.pills.length / max(1, self.cols)) * 30px;
+
+                for p[idx] in root.pills : Rectangle {
+                    x: Math.mod(idx, grid.cols) * 138px;
+                    y: Math.floor(idx / grid.cols) * 30px;
+                    width: 132px;
+                    height: 26px;
+                    border-radius: 13px;
+                    border-width: 1px;
+                    border-color: p.featured ? #c8a96e : #30363d;
+                    background: #161b22;
+
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 4px;
+                        Text {
+                            text: p.name;
+                            color: #c9d1d9;
+                            font-size: 10px;
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: p.pity;
+                            color: p.color;
+                            font-size: 11px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+
+            Rectangle { vertical-stretch: 1; }
+        }
+    }
+}
