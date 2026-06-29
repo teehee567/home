@@ -13,6 +13,9 @@ use crate::traits::{FramedReceiver, FramedSender, SplittableStream};
 
 pub type CoreStream = Duplex<CoreReader, CoreWriter>;
 
+// test thing
+const ENCRYPT_STREAMS: bool = true;
+
 impl Duplex<CoreReader, CoreWriter> {
     pub fn new(
         connection: (quinn::SendStream, quinn::RecvStream),
@@ -21,10 +24,15 @@ impl Duplex<CoreReader, CoreWriter> {
         module_transport_key: SecretBox<[u8; 32]>,
     ) -> Self {
         let quic = QuicStream::new(connection);
-        let noise = NoiseStream::new(quic, noise_transport, stream_id);
-        let xchacha = XChaChaStream::new(noise, module_transport_key);
-        let (reader, writer) = xchacha.split();
-        Duplex::from_halves(CoreReader { inner: reader }, CoreWriter { inner: writer })
+        if ENCRYPT_STREAMS {
+            let noise = NoiseStream::new(quic, noise_transport, stream_id);
+            let xchacha = XChaChaStream::new(noise, module_transport_key);
+            let (reader, writer) = xchacha.split();
+            Duplex::from_halves(CoreReader::Encrypted(reader), CoreWriter::Encrypted(writer))
+        } else {
+            let (reader, writer) = quic.split();
+            Duplex::from_halves(CoreReader::Raw(reader), CoreWriter::Raw(writer))
+        }
     }
 
     pub async fn send_message<T: Serialize>(&mut self, message: &T) -> Result<()> {
@@ -36,17 +44,20 @@ impl Duplex<CoreReader, CoreWriter> {
     }
 }
 
-pub struct CoreReader {
-    inner: XChaChaReader<NoiseReader<QuicReader>>,
+// raw QUIC half when ENCRYPT_STREAMS is off, full crypto stack when on
+pub enum CoreReader {
+    Encrypted(XChaChaReader<NoiseReader<QuicReader>>),
+    Raw(QuicReader),
 }
 
-pub struct CoreWriter {
-    inner: XChaChaWriter<NoiseWriter<QuicWriter>>,
+pub enum CoreWriter {
+    Encrypted(XChaChaWriter<NoiseWriter<QuicWriter>>),
+    Raw(QuicWriter),
 }
 
 impl CoreReader {
     pub async fn receive_message<T: DeserializeOwned>(&mut self) -> Result<T> {
-        let bytes = self.inner.receive().await?;
+        let bytes = self.receive().await?;
         Ok(postcard::from_bytes(&bytes)?)
     }
 }
@@ -54,18 +65,24 @@ impl CoreReader {
 impl CoreWriter {
     pub async fn send_message<T: Serialize>(&mut self, message: &T) -> Result<()> {
         let bytes = postcard::to_allocvec(message)?;
-        self.inner.send(&bytes).await
+        self.send(&bytes).await
     }
 }
 
 impl FramedReceiver for CoreReader {
     async fn receive(&mut self) -> Result<Vec<u8>> {
-        self.inner.receive().await
+        match self {
+            CoreReader::Encrypted(r) => r.receive().await,
+            CoreReader::Raw(r) => r.receive().await,
+        }
     }
 }
 
 impl FramedSender for CoreWriter {
     async fn send(&mut self, data: &[u8]) -> Result<()> {
-        self.inner.send(data).await
+        match self {
+            CoreWriter::Encrypted(w) => w.send(data).await,
+            CoreWriter::Raw(w) => w.send(data).await,
+        }
     }
 }

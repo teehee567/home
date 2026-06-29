@@ -122,7 +122,7 @@ fn paint(app: &App, data: &[Metrics], plot: (f32, f32)) {
         format!("{:.1}%  ·  {} MB", last.process.cpu, last.process.memory / 1_000_000).into(),
     );
     app.set_server_status(
-        format!("{:.0} ms · {:.1}% loss", last.network.rtt_ms, last.network.packet_loss).into(),
+        format!("{:.2} ms · {:.1}% loss", last.network.rtt_ms, last.network.packet_loss).into(),
     );
     app.set_server_connected(true);
 
@@ -145,7 +145,7 @@ fn stat_cards(m: &Metrics) -> Vec<MetricStat> {
         stat("CONNS", format!("{}", m.network.peers), TEAL),
         stat("REQ/S", format!("{:.0}", m.request.req_per_sec), ORANGE),
         stat("ERR", format!("{:.1}%", m.request.error_rate), RED),
-        stat("RTT", format!("{:.0} ms", m.network.rtt_ms), GREEN),
+        stat("RTT", format!("{:.2} ms", m.network.rtt_ms), GREEN),
         stat("LOSS", format!("{:.2}%", m.network.packet_loss), RED),
         stat("JITTER", format!("{:.1} ms", m.network.jitter_ms), GOLD),
     ]
@@ -155,13 +155,14 @@ fn chart_series(data: &[Metrics], last: &Metrics, plot: (f32, f32)) -> (Vec<Grap
     // axis label formatters, unit lives in the title
     let plain = |v: f64| format!("{v:.0}");
     let one_dp = |v: f64| format!("{v:.1}");
+    let two_dp = |v: f64| format!("{v:.2}");
     let bytes = |v: f64| human_bytes(v as u64);
 
     let left = vec![
         series("CPU %", format!("{:.1}%", last.process.cpu), BLUE, data, Some(100.0), plot,
             |m| m.process.cpu as f64, plain),
-        series("RTT ms", format!("{:.0} ms", last.network.rtt_ms), GREEN, data, None, plot,
-            |m| m.network.rtt_ms, plain),
+        series("RTT ms", format!("{:.2} ms", last.network.rtt_ms), GREEN, data, None, plot,
+            |m| m.network.rtt_ms, two_dp),
         series("Requests/s", format!("{:.0}", last.request.req_per_sec), ORANGE, data, None, plot,
             |m| m.request.req_per_sec, plain),
         series("Proc latency (p95)",
