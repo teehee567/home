@@ -1,3 +1,41 @@
+export struct WishBannerStat {
+    name: string,
+    total: int,
+    pity: int,
+    five-star: int,
+    four-star: int,
+    avg-pity: string,
+}
+
+component WishButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    height: 26px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.enabled ? #30363d : #21262d;
+    background: root.enabled ? (ta.has-hover ? #1f2937 : #161b22) : #0d1117;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        Text {
+            text: root.label;
+            color: root.enabled ? #c8a96e : #484f58;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { if root.enabled { root.clicked(); } }
+    }
+}
+
 export component GenshinFpsBlock inherits Rectangle {
     in property <string> fps-text: "---";
     in property <string> status-text: "Genshin Impact not running";
@@ -64,6 +102,12 @@ export component GenshinPage inherits Rectangle {
     in property <string> fps-text: "---";
     in property <string> status-text: "Genshin Impact not running";
     in property <bool> running: false;
+
+    in property <[WishBannerStat]> wish-banners: [];
+    in property <string> wish-status: "Open your in-game wish history, then Update.";
+    in property <bool> wish-busy: false;
+    callback export-wishes(bool);
+    callback export-file();
 
     VerticalLayout {
         padding: 20px;
@@ -160,6 +204,70 @@ export component GenshinPage inherits Rectangle {
                     font-size: 10px;
                 }
             }
+        }
+
+        Rectangle { height: 1px; background: #161b22; }
+
+        Text {
+            text: "WISHES";
+            color: #c8a96e;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+
+            WishButton {
+                label: root.wish-busy ? "Updating…" : "Update";
+                enabled: !root.wish-busy;
+                clicked => { root.export-wishes(false); }
+            }
+            WishButton {
+                label: "Full Refresh";
+                enabled: !root.wish-busy;
+                clicked => { root.export-wishes(true); }
+            }
+            WishButton {
+                label: "Export UIGF…";
+                enabled: !root.wish-busy && root.wish-banners.length > 0;
+                clicked => { root.export-file(); }
+            }
+        }
+
+        Text {
+            text: root.wish-status;
+            color: #7d8590;
+            font-size: 10px;
+        }
+
+        // header row
+        if root.wish-banners.length > 0 : HorizontalLayout {
+            padding-top: 4px;
+            Text { text: "Banner"; color: #484f58; font-size: 10px; horizontal-stretch: 1; }
+            Text { text: "Pity"; color: #484f58; font-size: 10px; width: 50px; horizontal-alignment: right; }
+            Text { text: "5★"; color: #484f58; font-size: 10px; width: 40px; horizontal-alignment: right; }
+            Text { text: "4★"; color: #484f58; font-size: 10px; width: 40px; horizontal-alignment: right; }
+            Text { text: "Avg"; color: #484f58; font-size: 10px; width: 50px; horizontal-alignment: right; }
+            Text { text: "Total"; color: #484f58; font-size: 10px; width: 50px; horizontal-alignment: right; }
+        }
+
+        for b in root.wish-banners : HorizontalLayout {
+            Text {
+                text: b.name;
+                color: #e6edf3;
+                font-size: 11px;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            Text { text: b.pity; color: #f0b72f; font-size: 11px; font-weight: 600; width: 50px; horizontal-alignment: right; vertical-alignment: center; }
+            Text { text: b.five-star; color: #c8a96e; font-size: 11px; width: 40px; horizontal-alignment: right; vertical-alignment: center; }
+            Text { text: b.four-star; color: #a371f7; font-size: 11px; width: 40px; horizontal-alignment: right; vertical-alignment: center; }
+            Text { text: b.avg-pity; color: #7d8590; font-size: 11px; width: 50px; horizontal-alignment: right; vertical-alignment: center; }
+            Text { text: b.total; color: #7d8590; font-size: 11px; width: 50px; horizontal-alignment: right; vertical-alignment: center; }
         }
 
         Rectangle { vertical-stretch: 1; }

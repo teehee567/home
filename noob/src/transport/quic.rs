@@ -2,7 +2,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 use quinn::{
-    ClientConfig, Connection, Endpoint, RecvStream, SendStream, ServerConfig,
+    ClientConfig, Endpoint, RecvStream, SendStream, ServerConfig,
     crypto::rustls::{QuicClientConfig, QuicServerConfig},
     rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer},
 };

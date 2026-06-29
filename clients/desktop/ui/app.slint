@@ -1,9 +1,9 @@
 import { Dashboard } from "pages/dashboard.slint";
-import { GenshinPage } from "modules/genshin.slint";
+import { GenshinPage, WishBannerStat } from "modules/genshin.slint";
 import { AppWatcherPage, WatchedAppData } from "modules/app_watcher.slint";
 import { MetricsPage, MetricStat, GraphData } from "modules/metrics.slint";
 
-export { MetricStat, GraphData }
+export { MetricStat, GraphData, WishBannerStat }
 
 component NavItem inherits Rectangle {
     in property <string> label;
@@ -71,6 +71,12 @@ export component App inherits Window {
     in property <string> fps-text: "---";
     in property <string> status-text: "Genshin Impact not running";
     in property <bool> running: false;
+
+    in property <[WishBannerStat]> wish-banners: [];
+    in property <string> wish-status: "Open your in-game wish history, then Update.";
+    in property <bool> wish-busy: false;
+    callback genshin-export-wishes(bool);
+    callback genshin-export-file();
 
     in property <string> server-value: "---";
     in property <string> server-status: "Not connected";
@@ -142,6 +148,11 @@ export component App inherits Window {
                 fps-text: root.fps-text;
                 status-text: root.status-text;
                 running: root.running;
+                wish-banners: root.wish-banners;
+                wish-status: root.wish-status;
+                wish-busy: root.wish-busy;
+                export-wishes(full) => { root.genshin-export-wishes(full); }
+                export-file() => { root.genshin-export-file(); }
             }
             if current-tab == 3 : AppWatcherPage {
                 apps: root.watcher-apps;

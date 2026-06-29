@@ -21,6 +21,7 @@ secrecy = { workspace = true }
 zeroize = { workspace = true }
 postcard = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 bytes = { workspace = true }
 parking_lot = { workspace = true }
 rustc-hash = { workspace = true }
@@ -40,6 +41,8 @@ rcgen = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 ferrisetw = { workspace = true }
+reqwest = { workspace = true }
+regex = { workspace = true }
 
 
 [dev-dependencies]

@@ -69,6 +69,7 @@ impl Module for AppWatcherModule {
 
     async fn run(mut self, mut ctx: Context<Self>) {
         let mut tick = time::interval(Duration::from_secs(60));
+        self.launch_all_offline();
         loop {
             tokio::select! {
                 msg = ctx.recv() => match msg {
@@ -124,6 +125,12 @@ impl AppWatcherModule {
 
     fn snapshot(&self) -> Vec<AppState> {
         self.apps.iter().map(|(_, path)| state_of(path)).collect()
+    }
+
+    fn launch_all_offline(&self) {
+        for (_, path) in &self.apps {
+            launch_if_offline(path);
+        }
     }
 }
 
