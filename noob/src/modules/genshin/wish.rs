@@ -1,12 +1,3 @@
-//! Genshin Impact (hk4e) wish-history export.
-//!
-//! Ported from the March7thAssistant Star Rail warp exporter (see
-//! `noob/src/modules/example.py`). The network flow is identical to Star Rail;
-//! only the game-specific constants differ (paths, API path, banner types,
-//! `game_biz`). Steps: locate the game install from the player log, recover the
-//! signed gacha URL (`authkey`) from the game's browser cache, then paginate the
-//! hk4e `getGachaLog` endpoint.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
