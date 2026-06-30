@@ -1,14 +1,3 @@
-//! miHoYo gacha-history export, shared by Genshin Impact (hk4e) and Honkai:
-//! Star Rail (hkrpg).
-//!
-//! The network flow is identical for both games — locate the game install from
-//! the player log, recover the signed gacha URL (`authkey`) from the game's
-//! browser cache, then paginate the `getGachaLog` endpoint — so it lives here
-//! once and is parameterized by [`GameProfile`]. Only the constants differ
-//! (paths, hosts, API path, banner types, `game_biz`). Use [`GENSHIN`] or
-//! [`STAR_RAIL`] to pick a game; both are modeled on Starward's
-//! `GenshinGachaClient` / `StarRailGachaClient`.
-
 use std::collections::HashMap;
 use std::{env, fmt, fs};
 use std::path::{Path, PathBuf};
